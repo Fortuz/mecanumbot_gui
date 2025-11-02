@@ -1,8 +1,12 @@
-from flask import Flask, request, render_template_string, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for
 import os
 import csv
 import sqlite3
 from datetime import datetime
+import pygame
+import sys
+import requests
+import json
 
 app = Flask(__name__)
 
@@ -18,8 +22,8 @@ MAPPINGS_CSV = os.path.join(BASE_DIR, "mappings.csv")
 SQLITE_PATH = os.path.join(BASE_DIR, "data")
 SQLITE_DB = os.path.join(SQLITE_PATH, "app.db")
 
-# Controller buttons to map (Xbox 360 set, incl. sticks + directions)
-CONTROLLER_BUTTONS = [
+# Default Xbox 360 controller buttons
+XBOX360_BUTTONS = [
     "A", "B", "X", "Y",
     "LB", "RB", "LT", "RT",
     "Start", "Back",
@@ -29,121 +33,157 @@ CONTROLLER_BUTTONS = [
     "DPadUp", "DPadDown", "DPadLeft", "DPadRight"
 ]
 
-# -------- HTML templates --------
+# PS4 controller buttons (DualShock 4)
+PS4_BUTTONS = [
+    "Cross", "Circle", "Square", "Triangle",
+    "L1", "R1", "L2", "R2",
+    "Share", "Options", "PS",
+    "L3", "R3",                       # stick clicks
+    "LStickUp", "LStickDown", "LStickLeft", "LStickRight",
+    "RStickUp", "RStickDown", "RStickLeft", "RStickRight",
+    "DPadUp", "DPadDown", "DPadLeft", "DPadRight",
+    "Touchpad_Click", "Touchpad_Touch"  # PS4 specific features
+]
 
-INDEX_HTML = """
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Submit Names</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 720px; }
-    form { display: grid; gap: .75rem; }
-    label { font-weight: 600; }
-    input[type=text] { padding: .5rem; border: 1px solid #cbd5e1; border-radius: .5rem; }
-    button { padding: .6rem 1rem; border-radius: .5rem; border: 1px solid #cbd5e1; cursor: pointer; }
-    .err { color: #7f1d1d; background: #fee2e2; padding: .5rem .75rem; border-radius: .5rem; }
-    .hint { color: #475569; }
-  </style>
-</head>
-<body>
-  <h1>Save user & volunteer</h1>
-  {% if msg %}<div class="err">{{ msg }}</div>{% endif %}
-  <form method="post" action="{{ url_for('save') }}">
-    <div>
-      <label for="user_name">User name</label>
-      <input type="text" id="user_name" name="user_name" placeholder="e.g. Alex Smith">
-    </div>
-    <div>
-      <label for="volunteer_name">Volunteer name</label>
-      <input type="text" id="volunteer_name" name="volunteer_name" placeholder="e.g. Jamie Doe">
-    </div>
-    <button type="submit">Save & Configure Controller</button>
-  </form>
-  <p class="hint">Storage: {{ storage_hint }}</p>
-</body>
-</html>
-"""
+# Global variable to store detected controller buttons
+CONTROLLER_BUTTONS = []
+CONTROLLER_TYPE = ""
 
-CONFIGURE_HTML = """
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Configure Controller</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; }
-    .wrap { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
-    .left { background: #f1f5f9; display: flex; align-items: center; justify-content: center; padding: 2rem; } /* brighter */
-    .left img { max-width: 100%; height: auto; border-radius: 1rem; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
-    .right { padding: 2rem; }
-    h1 { margin-top: 0; }
-    form { display: grid; gap: 1rem; }
-    .row { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: .75rem; }
-    select { padding: .5rem; border: 1px solid #cbd5e1; border-radius: .5rem; width: 100%; }
-    button { justify-self: start; padding: .6rem 1rem; border-radius: .5rem; border: 1px solid #cbd5e1; cursor: pointer; }
-    .note { color: #475569; margin-bottom: 1rem; }
-    .pill { display:inline-block; background:#e2e8f0; padding:.2rem .5rem; border-radius:999px; margin-right:.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="left">
-      <img src="{{ url_for('static', filename='xbox-controller.svg.png') }}" alt="Xbox 360 Controller">
-    </div>
-    <div class="right">
-      <h1>Map buttons to actions</h1>
-      <p class="note">
-        Choose an <strong>action</strong> for each controller input. Actions are loaded from
-        {{ 'SQLite' if use_sqlite else 'CSV' }} ({{ actions_source }}).
-      </p>
+def detect_controller():
+    """Detect plugged-in controller and return its type and available buttons."""
+    global CONTROLLER_BUTTONS, CONTROLLER_TYPE
+    
+    # Check if running in Docker
+    in_docker = os.path.exists('/.dockerenv') or os.environ.get('container') == 'docker'
+    
+    # Try to get controller info from bridge service first (for Docker)
+    if in_docker:
+        try:
+            # Try to connect to host bridge service
+            # Docker's host.docker.internal or gateway IP
+            bridge_urls = [
+                "http://host.docker.internal:8899/controller-info",
+                "http://172.17.0.1:8899/controller-info",  # Default Docker gateway
+                "http://192.168.1.1:8899/controller-info",  # Common router IP
+                "http://10.0.0.1:8899/controller-info"      # Another common gateway
+            ]
+            
+            for url in bridge_urls:
+                try:
+                    print(f"Trying to connect to bridge service at {url}...")
+                    response = requests.get(url, timeout=2)
+                    if response.status_code == 200:
+                        controller_data = response.json()
+                        
+                        CONTROLLER_TYPE = controller_data.get("controller_type", "Unknown") + " (via Bridge)"
+                        CONTROLLER_BUTTONS = controller_data.get("controller_buttons", [])
+                        detected = controller_data.get("controller_detected", False)
+                        
+                        print(f"✓ Connected to bridge service!")
+                        print(f"Controller: {controller_data.get('controller_type', 'Unknown')}")
+                        print(f"Buttons: {len(CONTROLLER_BUTTONS)}")
+                        
+                        return detected
+                        
+                except requests.exceptions.RequestException:
+                    continue
+            
+            print("❌ Could not connect to bridge service!")
+            print("Make sure to run the controller_bridge.py script on the host system first.")
+            print("Expected bridge service at: http://host.docker.internal:8899")
+            
+        except Exception as e:
+            print(f"Bridge service error: {e}")
+    
+    # Fallback to direct detection (for non-Docker or when bridge fails)
+    try:
+        # Initialize pygame for controller detection
+        pygame.init()
+        pygame.joystick.init()
+        
+        # Check if any controllers are connected
+        joystick_count = pygame.joystick.get_count()
+        
+        if joystick_count == 0:
+            if in_docker:
+                print("No controllers detected! (Running in Docker - try using bridge service)")
+                print("1. Run: python controller_bridge.py (on host)")
+                print("2. Restart this container")
+            else:
+                print("No controllers detected!")
+            CONTROLLER_TYPE = "None" + (" (Docker)" if in_docker else "")
+            CONTROLLER_BUTTONS = []
+            return False
+        
+        # Get the first controller
+        joystick = pygame.joystick.Joystick(0)
+        joystick.init()
+        
+        controller_name = joystick.get_name().lower()
+        print(f"Controller detected: {joystick.get_name()}" + (" (in Docker)" if in_docker else ""))
+        
+        # Check if it's an Xbox 360 controller
+        if "xbox 360" in controller_name or "xbox360" in controller_name or "360" in controller_name:
+            CONTROLLER_TYPE = "Xbox 360" + (" (Docker)" if in_docker else "")
+            CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
+            print("Using Xbox 360 button layout")
+        # Check if it's a PS4 controller
+        elif "ps4" in controller_name or "dualshock 4" in controller_name or "wireless controller" in controller_name:
+            CONTROLLER_TYPE = "PS4 Controller" + (" (Docker)" if in_docker else "")
+            CONTROLLER_BUTTONS = PS4_BUTTONS.copy()
+            print("Using PS4 controller button layout")
+        else:
+            # For other controllers, detect available buttons dynamically
+            CONTROLLER_TYPE = joystick.get_name() + (" (Docker)" if in_docker else "")
+            CONTROLLER_BUTTONS = []
+            
+            # Get number of buttons
+            num_buttons = joystick.get_numbuttons()
+            for i in range(num_buttons):
+                CONTROLLER_BUTTONS.append(f"Button_{i}")
+            
+            # Get number of axes (analog sticks, triggers)
+            num_axes = joystick.get_numaxes()
+            for i in range(num_axes):
+                CONTROLLER_BUTTONS.append(f"Axis_{i}_Positive")
+                CONTROLLER_BUTTONS.append(f"Axis_{i}_Negative")
+            
+            # Get number of hats (d-pads)
+            num_hats = joystick.get_numhats()
+            for i in range(num_hats):
+                CONTROLLER_BUTTONS.append(f"Hat_{i}_Up")
+                CONTROLLER_BUTTONS.append(f"Hat_{i}_Down")
+                CONTROLLER_BUTTONS.append(f"Hat_{i}_Left")
+                CONTROLLER_BUTTONS.append(f"Hat_{i}_Right")
+            
+            print(f"Detected {num_buttons} buttons, {num_axes} axes, {num_hats} hats")
+            print(f"Using dynamic button layout: {CONTROLLER_BUTTONS}")
+        
+        return True
+        
+    except Exception as e:
+        error_msg = f"Error detecting controller: {e}"
+        if in_docker:
+            error_msg += " (Docker environment - consider using bridge service)"
+        print(error_msg)
+        CONTROLLER_TYPE = "Error" + (" (Docker)" if in_docker else "")
+        CONTROLLER_BUTTONS = []
+        return False
+    finally:
+        # Clean up pygame
+        try:
+            pygame.joystick.quit()
+            pygame.quit()
+        except:
+            pass
 
-      {% if actions|length == 0 %}
-        <p><em>No actions found. Add some to the actions store first.</em></p>
-      {% else %}
-      <form method="post" action="{{ url_for('save_mapping') }}">
-        {% for btn in buttons %}
-          <div class="row">
-            <div><span class="pill">{{ btn }}</span></div>
-            <div>
-              <select name="btn_{{ btn }}">
-                <option value="">-- Select action --</option>
-                {% for a in actions %}
-                  <option value="{{ a }}">{{ a }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-        {% endfor %}
-        <button type="submit">Save mappings</button>
-      </form>
-      {% endif %}
-    </div>
-  </div>
-</body>
-</html>
-"""
-
-SUCCESS_HTML = """
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Saved!</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; text-align:center; }
-    a { display:inline-block; margin-top: 1rem; }
-  </style>
-</head>
-<body>
-  <h1>Mappings saved!</h1>
-  <div><a href="{{ url_for('configure') }}">Back to controller</a></div>
-  <div><a href="{{ url_for('index') }}">Back to names form</a></div>
-</body>
-</html>
-"""
+# Detect controller on startup
+print("Detecting controller...")
+controller_detected = detect_controller()
+if not controller_detected:
+    print("Warning: No controller detected or error occurred. Using Xbox 360 layout as fallback.")
+    CONTROLLER_TYPE = "Xbox 360 (Fallback)"
+    CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
 
 # -------- helpers --------
 
@@ -235,13 +275,24 @@ def save_mappings_csv(mapping_dict):
 def storage_hint_text():
     return (f"SQLite: {SQLITE_DB}" if USE_SQLITE else f"CSV: {ACTIONS_CSV} (actions), {MAPPINGS_CSV} (mappings)")
 
+def get_controller_image():
+    """Get the appropriate controller image filename based on detected controller type"""
+    if "PS4" in CONTROLLER_TYPE or "DualShock 4" in CONTROLLER_TYPE or "ps4" in CONTROLLER_TYPE.lower():
+        return "ps4_controller.jpeg"
+    elif "Xbox 360" in CONTROLLER_TYPE or "xbox 360" in CONTROLLER_TYPE.lower():
+        return "xbox-controller.svg.png"
+    else:
+        return "xbox-controller.svg.png"  # Default fallback
+
 # -------- routes --------
 
 @app.get("/")
 def index():
-    return render_template_string(
-        INDEX_HTML,
+    return render_template(
+        "index.html",
         msg="",
+        controller_type=CONTROLLER_TYPE,
+        controller_detected=controller_detected,
         storage_hint=storage_hint_text()
     )
 
@@ -251,7 +302,11 @@ def save():
     user_name = (request.form.get("user_name") or "").strip()
     volunteer_name = (request.form.get("volunteer_name") or "").strip()
     if not user_name or not volunteer_name:
-        return render_template_string(INDEX_HTML, msg="Please fill in both fields.", storage_hint=storage_hint_text())
+        return render_template("index.html", 
+                                    msg="Please fill in both fields.", 
+                                    controller_type=CONTROLLER_TYPE,
+                                    controller_detected=controller_detected,
+                                    storage_hint=storage_hint_text())
 
     # Minimal persistence of names as log (CSV)
     names_csv = os.path.join(BASE_DIR, "submissions.csv")
@@ -273,13 +328,46 @@ def configure():
         actions = read_actions_sqlite()
     else:
         actions = read_actions_csv()
-    return render_template_string(
-        CONFIGURE_HTML,
+    return render_template(
+        "configure.html",
         actions=actions,
         buttons=CONTROLLER_BUTTONS,
+        controller_type=CONTROLLER_TYPE,
+        controller_image=get_controller_image(),
         use_sqlite=USE_SQLITE,
         actions_source=(SQLITE_DB if USE_SQLITE else ACTIONS_CSV)
     )
+
+@app.post("/redetect-controller")
+def redetect_controller():
+    """Re-detect the controller and redirect back to configure page"""
+    global CONTROLLER_BUTTONS, CONTROLLER_TYPE
+    print("Re-detecting controller...")
+    
+    # If in Docker, try to trigger bridge service re-detection
+    in_docker = os.path.exists('/.dockerenv') or os.environ.get('container') == 'docker'
+    if in_docker:
+        try:
+            bridge_urls = [
+                "http://host.docker.internal:8899/detect",
+                "http://172.17.0.1:8899/detect",
+                "http://192.168.1.1:8899/detect",
+                "http://10.0.0.1:8899/detect"
+            ]
+            
+            for url in bridge_urls:
+                try:
+                    response = requests.get(url, timeout=2)
+                    if response.status_code == 200:
+                        print("Triggered bridge service re-detection")
+                        break
+                except requests.exceptions.RequestException:
+                    continue
+        except Exception as e:
+            print(f"Could not trigger bridge re-detection: {e}")
+    
+    detect_controller()
+    return redirect(url_for("configure"))
 
 @app.post("/map")
 def save_mapping():
@@ -295,7 +383,7 @@ def save_mapping():
     else:
         save_mappings_csv(mapping)
 
-    return render_template_string(SUCCESS_HTML)
+    return render_template("success.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)

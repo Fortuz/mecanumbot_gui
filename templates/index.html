@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Submit Names</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 720px; }
+    form { display: grid; gap: .75rem; }
+    label { font-weight: 600; }
+    input[type=text] { padding: .5rem; border: 1px solid #cbd5e1; border-radius: .5rem; }
+    button { padding: .6rem 1rem; border-radius: .5rem; border: 1px solid #cbd5e1; cursor: pointer; }
+    .err { color: #7f1d1d; background: #fee2e2; padding: .5rem .75rem; border-radius: .5rem; }
+    .hint { color: #475569; }
+    .controller-status { background: #f0f9ff; padding: 1rem; border-radius: .5rem; margin-bottom: 1rem; }
+    .status-good { background: #f0fdf4; border-left: 4px solid #22c55e; }
+    .status-warning { background: #fefce8; border-left: 4px solid #eab308; }
+  </style>
+</head>
+<body>
+  <h1>Save user & volunteer</h1>
+  
+  <div class="controller-status {{ 'status-good' if controller_detected else 'status-warning' }}">
+    <strong>Controller Status:</strong> {{ controller_type }}
+    {% if not controller_detected %}
+      <br><small>Warning: Using fallback Xbox 360 layout. Connect a controller for better experience.</small>
+    {% endif %}
+  </div>
+  
+  {% if msg %}<div class="err">{{ msg }}</div>{% endif %}
+  <form method="post" action="{{ url_for('save') }}">
+    <div>
+      <label for="user_name">User name</label>
+      <input type="text" id="user_name" name="user_name" placeholder="e.g. Alex Smith">
+    </div>
+    <div>
+      <label for="volunteer_name">Volunteer name</label>
+      <input type="text" id="volunteer_name" name="volunteer_name" placeholder="e.g. Jamie Doe">
+    </div>
+    <button type="submit">Save & Configure Controller</button>
+  </form>
+  <p class="hint">Storage: {{ storage_hint }}</p>
+</body>
+</html>
