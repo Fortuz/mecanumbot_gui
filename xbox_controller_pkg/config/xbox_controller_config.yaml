@@ -1,0 +1,41 @@
+# Xbox 360 Controller Configuration
+# This file contains configurable parameters for the Xbox controller node
+
+xbox_controller:
+  ros__parameters:
+    # Controller button mapping
+    button_names:
+      0: 'A'
+      1: 'B'
+      2: 'X'
+      3: 'Y'
+      4: 'LB'
+      5: 'RB'
+      6: 'BACK'
+      7: 'START'
+      8: 'XBOX'
+      9: 'LS'
+      10: 'RS'
+    
+    # Axis mapping
+    axis_names:
+      0: 'LEFT_STICK_X'
+      1: 'LEFT_STICK_Y'
+      2: 'LEFT_TRIGGER'
+      3: 'RIGHT_STICK_X'
+      4: 'RIGHT_STICK_Y'
+      5: 'RIGHT_TRIGGER'
+      6: 'DPAD_X'
+      7: 'DPAD_Y'
+    
+    # Publishing rates
+    state_publish_rate: 10.0  # Hz
+    
+    # Axis change threshold (to filter noise)
+    axis_threshold: 0.1
+    
+    # Topics
+    topics:
+      joy_input: '/joy'
+      button_events: '/xbox_controller/button_events'
+      controller_state: '/xbox_controller/state'

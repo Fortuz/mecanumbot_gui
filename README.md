@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Controller Configuration App
 
 A Flask web application that automatically detects different types of game controllers and provides appropriate button mapping interfaces.
@@ -382,3 +383,14 @@ docker_teszt/
 6. **Web Interface**: Flask app displays controller-specific interface with proper button names
 7. **Action Mapping**: Users map controller buttons to game actions
 8. **Data Persistence**: Mappings saved to CSV or SQLite
+=======
+# mecanumbot_gui
+General GUI to observe and control the Mecanumbot
+
+## Bringup
+
+```
+docker build -t text-saver .
+docker run --rm -p 8080:8080 -v "$HOME\Documents:/host_docs" text-saver
+```
+>>>>>>> e512fffdde33e5e9682cb772b8fac742f4839163
