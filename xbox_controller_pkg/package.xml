@@ -24,13 +24,6 @@
   <depend>sensor_msgs</depend>
   <depend>joy</depend>
   
-  <!-- Test dependencies -->
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
-  <test_depend>python3-pytest</test_depend>
   
   <!-- Export information -->
   <export>

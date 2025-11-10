@@ -13,8 +13,11 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         # Include launch files
+
+        ('share/' + package_name + '/launch', ['launch/xbox_controller_launch.py']),
+
         (os.path.join('share', package_name, 'launch'),
-            glob(os.path.join('launch', '*.launch.py'))),
+            glob(os.path.join(package_name, 'launch', '*.launch.py'))),
         # Include config files
         (os.path.join('share', package_name, 'config'),
             glob(os.path.join('config', '*.yaml'))),
@@ -30,7 +33,6 @@ setup(
     maintainer_email='your.email@example.com',
     description='ROS 2 package for Xbox 360 controller integration with button event publishing',
     license='MIT',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'xbox_controller_node = xbox_controller_pkg.xbox_controller_node:main',
