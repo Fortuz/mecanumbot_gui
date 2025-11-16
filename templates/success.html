@@ -6,10 +6,15 @@
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; text-align:center; }
     a { display:inline-block; margin-top: 1rem; }
+    .message { margin: 2rem 0; padding: 1rem; background: #f0f9ff; border-radius: 8px; }
   </style>
 </head>
 <body>
   <h1>Mappings saved!</h1>
+  {% if message %}
+  <div class="message">{{ message }}</div>
+  {% endif %}
+  <div><a href="{{ url_for('button_mapping') }}">Back to button mapping</a></div>
   <div><a href="{{ url_for('configure') }}">Back to controller</a></div>
   <div><a href="{{ url_for('index') }}">Back to names form</a></div>
 </body>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Mapping Configuration</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .controller-info {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .controller-info strong {
+            color: #667eea;
+        }
+        .info-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .info-box code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .mappings-list {
+            margin-bottom: 30px;
+        }
+        .mapping-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        .mapping-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+        .mapping-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .mapping-name {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 18px;
+        }
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .delete-btn:hover {
+            background: #c82333;
+        }
+        .tuple-list {
+            margin-top: 10px;
+        }
+        .tuple-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .tuple-number {
+            background: #667eea;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .tuple-content {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .new-mapping-form {
+            background: #e8f4fd;
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        textarea {
+            font-family: 'Courier New', monospace;
+            min-height: 120px;
+            resize: vertical;
+        }
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .placeholder-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .back-button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .sample-text {
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #4caf50;
+            margin-top: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ Action Configuration</h1>
+        <p class="subtitle">Create individual actions with multiple topic-message pairs</p>
+        
+        <div class="controller-info">
+            <strong>Controller:</strong> {{ controller_type }}
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <a href="/map-buttons" style="background: linear-gradient(135deg, #48c6ef 0%, #6f86d6 100%); color: white; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; display: inline-block;">
+                🎮 Map Buttons to Actions
+            </a>
+        </div>
+
+        <div class="info-box">
+            <h3>📝 How it works</h3>
+            <p>Each action consists of:</p>
+            <ul>
+                <li><strong>Action Name:</strong> A descriptive name (e.g., "Forward Movement")</li>
+                <li><strong>Action Type:</strong> Button (discrete) or Joystick (continuous with X, Y values)</li>
+                <li><strong>Tuple List:</strong> Multiple (topic, message) pairs that will be published when triggered</li>
+            </ul>
+            <p><strong>Format:</strong> One tuple per line: <code>topic_name, message_to_publish</code></p>
+            <p><strong>For Joystick Actions:</strong> Use <code>X</code> and <code>Y</code> as placeholders for joystick position</p>
+        </div>
+
+        <!-- New Mapping Form -->
+        <div class="new-mapping-form">
+            <h2 style="margin-top: 0; color: #667eea;">➕ Create New Action</h2>
+            <form method="POST" action="/button-mapping/create">
+                <div class="form-group">
+                    <label for="mapping_name">Action Name:</label>
+                    <input 
+                        type="text" 
+                        id="mapping_name" 
+                        name="mapping_name" 
+                        placeholder="e.g., Forward Movement, Jump Action, LED Blue Pattern"
+                        required
+                    >
+                    <div class="placeholder-hint">Give your action a descriptive name</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="action_type">Action Type:</label>
+                    <select id="action_type" name="action_type" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px;" onchange="updateSampleText()">
+                        <option value="button">Button Action (discrete trigger)</option>
+                        <option value="joystick">Joystick Action (uses X, Y values)</option>
+                    </select>
+                    <div class="placeholder-hint">Button actions are for discrete buttons, Joystick actions use continuous X, Y values</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="tuple_list">Tuple List (topic, message):</label>
+                    <textarea 
+                        id="tuple_list" 
+                        name="tuple_list" 
+                        placeholder="Enter one tuple per line..."
+                        required
+                    ></textarea>
+                    <div class="placeholder-hint">Enter one tuple per line: <strong>topic_name, message</strong></div>
+                    <div class="sample-text" id="sample-text-button">Sample for Button Action (copy and modify):
+/cmd_vel, {"linear": {"x": 1.0}, "angular": {"z": 0.0}}
+/robot/led, {"color": "green", "pattern": "solid"}
+/robot/sound, {"sound_id": 1, "volume": 0.8}</div>
+                    <div class="sample-text" id="sample-text-joystick" style="display: none;">Sample for Joystick Action (copy and modify):
+/cmd_vel, {"linear": {"x": X}, "angular": {"z": Y}}
+/robot/camera, {"pan": X, "tilt": Y}
+/robot/arm, {"joint1": X, "joint2": Y}
+
+Note: X and Y will be replaced with actual joystick position (-1.0 to 1.0)</div>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit">💾 Save Action</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Existing Mappings -->
+        <h2 style="color: #667eea;">📋 Existing Actions</h2>
+        <div class="mappings-list">
+            {% if mappings %}
+                {% for action_name, mapping_data in mappings.items() %}
+                <div class="mapping-item">
+                    <div class="mapping-header">
+                        <div>
+                            <div class="mapping-name">
+                                {% if mapping_data.type == 'joystick' %}
+                                    🕹️ {{ action_name }} <span style="font-size: 12px; background: #48c6ef; color: white; padding: 3px 8px; border-radius: 3px; margin-left: 10px;">JOYSTICK</span>
+                                {% else %}
+                                    ⚙️ {{ action_name }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <form method="POST" action="/button-mapping/delete" style="display: inline;">
+                            <input type="hidden" name="action_name" value="{{ action_name }}">
+                            <button type="submit" class="delete-btn" onclick="return confirm('Delete this action?')">🗑️ Delete</button>
+                        </form>
+                    </div>
+                    <div class="tuple-list">
+                        {% for tuple in mapping_data.tuples %}
+                        <div class="tuple-item">
+                            <div class="tuple-number">{{ loop.index }}</div>
+                            <div class="tuple-content">
+                                <strong>Topic:</strong> {{ tuple[0] }}<br>
+                                <strong>Message:</strong> {{ tuple[1] }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; padding: 40px; color: #999;">
+                    <p style="font-size: 18px;">No actions created yet</p>
+                    <p>Create your first action using the form above!</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="button-group">
+            <button type="button" class="back-button" onclick="window.location.href='/'">
+                ← Back to Home
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function updateSampleText() {
+            const actionType = document.getElementById('action_type').value;
+            const buttonSample = document.getElementById('sample-text-button');
+            const joystickSample = document.getElementById('sample-text-joystick');
+            
+            if (actionType === 'joystick') {
+                buttonSample.style.display = 'none';
+                joystickSample.style.display = 'block';
+            } else {
+                buttonSample.style.display = 'block';
+                joystickSample.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

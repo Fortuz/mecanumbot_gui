@@ -74,6 +74,13 @@ class Xbox360ControllerNode(Node):
             10
         )
         
+        # Create publisher for joystick events
+        self.joystick_publisher = self.create_publisher(
+            String,
+            '/xbox_controller/joystick_events',
+            10
+        )
+        
         # Create publisher for controller state
         self.state_publisher = self.create_publisher(
             String,
@@ -83,6 +90,9 @@ class Xbox360ControllerNode(Node):
         
         # Timer for publishing current state periodically
         self.state_timer = self.create_timer(0.1, self.publish_state)  # 10Hz
+        
+        # Timer for publishing joystick positions periodically
+        self.joystick_timer = self.create_timer(0.1, self.publish_joystick_positions)  # 10Hz
         
         self.current_joy_msg = None
         
@@ -196,6 +206,53 @@ class Xbox360ControllerNode(Node):
         msg = String()
         msg.data = json.dumps(state_data)
         self.state_publisher.publish(msg)
+
+    def publish_joystick_positions(self):
+        """
+        Publish joystick positions as continuous events for joystick actions.
+        """
+        if self.current_joy_msg is None:
+            return
+        
+        axes = self.current_joy_msg.axes
+        
+        # Check if we have enough axes for both sticks
+        if len(axes) < 5:
+            return
+        
+        # Left Stick (axes 0 and 1)
+        left_x = round(axes[0], 3) if len(axes) > 0 else 0.0
+        left_y = round(axes[1], 3) if len(axes) > 1 else 0.0
+        
+        # Right Stick (axes 3 and 4)
+        right_x = round(axes[3], 3) if len(axes) > 3 else 0.0
+        right_y = round(axes[4], 3) if len(axes) > 4 else 0.0
+        
+        # Publish Left Stick event if not centered (deadzone 0.05)
+        if abs(left_x) > 0.05 or abs(left_y) > 0.05:
+            left_event = {
+                'type': 'JOYSTICK',
+                'joystick_name': 'Left Stick',
+                'x': left_x,
+                'y': left_y,
+                'timestamp': self.get_clock().now().to_msg()._sec
+            }
+            msg = String()
+            msg.data = json.dumps(left_event)
+            self.joystick_publisher.publish(msg)
+        
+        # Publish Right Stick event if not centered (deadzone 0.05)
+        if abs(right_x) > 0.05 or abs(right_y) > 0.05:
+            right_event = {
+                'type': 'JOYSTICK',
+                'joystick_name': 'Right Stick',
+                'x': right_x,
+                'y': right_y,
+                'timestamp': self.get_clock().now().to_msg()._sec
+            }
+            msg = String()
+            msg.data = json.dumps(right_event)
+            self.joystick_publisher.publish(msg)
 
 
 def main(args=None):

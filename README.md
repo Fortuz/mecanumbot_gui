@@ -1,4 +1,30 @@
-<<<<<<< HEAD
+
+How to start:
+  start docker desktop.
+  
+  docker build -t mecanumbot-gui .
+
+  docker run -d --name mecanumbot-gui -p 8080:8080 -v "$HOME\Documents:/host_docs" mecanumbot-gui
+
+  runs on http://localhost:8080
+How stop it:
+  docker stop mecanumbot-gui
+  or
+  docker stop mecanumbot-gui; docker rm mecanumbot-gui; docker run -d --name mecanumbot-gui -p 8080:8080 -v "$HOME\Documents:/host_docs" mecanumbot-gui
+restart:
+  docker start mecanumbot-gui
+
+
+
+
+
+
+
+
+
+
+
+
 # Controller Configuration App
 
 A Flask web application that automatically detects different types of game controllers and provides appropriate button mapping interfaces.
@@ -383,7 +409,146 @@ docker_teszt/
 6. **Web Interface**: Flask app displays controller-specific interface with proper button names
 7. **Action Mapping**: Users map controller buttons to game actions
 8. **Data Persistence**: Mappings saved to CSV or SQLite
-=======
+
+## 🎯 ROS2 Button Mapping System
+
+The application includes a comprehensive ROS2 button mapping system that allows you to map controller buttons to custom ROS2 topics with configurable parameters.
+
+### Features
+- **Web-based Configuration**: Configure button mappings through an intuitive web interface
+- **Dynamic Topic Publishing**: Map any button to any ROS2 topic with custom parameters
+- **Real-time Updates**: Changes take effect immediately
+- **JSON Parameters**: Full flexibility with JSON-formatted parameters
+- **Visual Validation**: JSON syntax validation in the browser
+
+### Components
+
+#### 1. Web Interface
+- **URL**: `http://localhost:8080/button-mapping`
+- Configure each button with:
+  - Target ROS2 topic (e.g., `/robot/move`)
+  - Parameters as JSON (e.g., `{"direction": "forward", "speed": 1.0}`)
+- Visual interface with controller-specific button names
+- Real-time JSON validation
+
+#### 2. Button Mapper Package (ROS2)
+The `button_mapper_pkg` is a ROS2 package that:
+- Subscribes to button mapping configuration (`/button_mapper/config`)
+- Subscribes to Xbox controller button events (`/xbox_controller/button_events`)
+- Publishes to user-configured topics when buttons are pressed
+
+#### 3. Controller Bridge
+The bridge service handles:
+- Controller detection on host system
+- Communication between Docker and ROS2
+- Publishing button mapping configuration to ROS2 topics
+
+### Quick Start with Button Mapping
+
+#### Step 1: Install the Button Mapper Package
+```bash
+cd button_mapper_pkg
+./install.sh
+source ../install/setup.bash
+```
+
+#### Step 2: Start All Services
+```bash
+# Use the quick start script
+./quick_start.sh
+
+# Or manually start each component:
+
+# Terminal 1: Controller Bridge (host)
+python3 controller_bridge.py
+
+# Terminal 2: Joy Node (ROS2)
+ros2 run joy joy_node
+
+# Terminal 3: Xbox Controller Node (ROS2)
+ros2 run xbox_controller_pkg xbox_controller_node
+
+# Terminal 4: Button Mapper Node (ROS2)
+ros2 run button_mapper_pkg button_mapper_node
+```
+
+#### Step 3: Configure Mappings
+1. Open web browser: `http://localhost:8080/button-mapping`
+2. Configure buttons with topics and parameters
+3. Click "Save Mappings"
+
+#### Step 4: Test the Mappings
+Press buttons on your controller and observe the published messages:
+```bash
+# Monitor a specific topic
+ros2 topic echo /robot/move
+
+# List all active topics
+ros2 topic list
+```
+
+### Example Button Mappings
+
+The system includes example configurations in `example_mappings.py`:
+
+```python
+# View example mappings
+python example_mappings.py print
+
+# Save examples to file
+python example_mappings.py save
+
+# Publish examples directly to ROS2
+python example_mappings.py publish
+```
+
+Example mappings include:
+- **Movement**: Forward, backward, strafe left/right
+- **Rotation**: Turn left/right
+- **System**: Start, stop commands
+- **LED Control**: Patterns, colors, brightness
+- **Camera**: Pan and tilt
+- **Arm Control**: Joint movements
+- **Gripper**: Open/close
+
+### ROS2 Topics
+
+#### Subscribed Topics
+- `/button_mapper/config` (std_msgs/String): Button mapping configuration
+- `/xbox_controller/button_events` (std_msgs/String): Button press events
+
+#### Published Topics
+Dynamic topics based on your configuration. Examples:
+- `/robot/move` - Movement commands
+- `/robot/rotation` - Rotation commands
+- `/robot/led` - LED control
+- `/robot/camera` - Camera control
+- `/robot/arm` - Arm control
+- `/robot/gripper` - Gripper control
+
+### Documentation
+
+For detailed information about the button mapping system, see:
+- **[BUTTON_MAPPING_GUIDE.md](BUTTON_MAPPING_GUIDE.md)** - Complete system documentation
+- **[button_mapper_pkg/README.md](button_mapper_pkg/README.md)** - ROS2 package details
+
+### Troubleshooting
+
+**Configuration not updating?**
+- Check that `controller_bridge.py` is running
+- Verify ROS2 environment is sourced
+- Monitor topic: `ros2 topic echo /button_mapper/config`
+
+**Button events not received?**
+- Ensure `xbox_controller_node` is running
+- Check `joy_node` is publishing to `/joy`
+- Monitor: `ros2 topic echo /xbox_controller/button_events`
+
+**Messages not publishing?**
+- Check `button_mapper_node` logs for errors
+- Verify button names match configuration
+- Use `ros2 topic list` to see all topics
+
 # mecanumbot_gui
 General GUI to observe and control the Mecanumbot
 
@@ -393,4 +558,3 @@ General GUI to observe and control the Mecanumbot
 docker build -t text-saver .
 docker run --rm -p 8080:8080 -v "$HOME\Documents:/host_docs" text-saver
 ```
->>>>>>> e512fffdde33e5e9682cb772b8fac742f4839163

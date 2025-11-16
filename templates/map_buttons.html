@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Buttons to Actions</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .controller-info {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .controller-info strong {
+            color: #667eea;
+        }
+        .info-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .new-mapping-form {
+            background: #e8f4fd;
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        .back-button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .mappings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .mapping-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
+        }
+        .mapping-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+        .button-name {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .action-name {
+            color: #28a745;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .action-preview {
+            font-size: 12px;
+            color: #666;
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 8px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .placeholder-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .nav-link {
+            background: linear-gradient(135deg, #48c6ef 0%, #6f86d6 100%);
+            color: white;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(72, 198, 239, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Map Buttons to Actions</h1>
+        <p class="subtitle">Assign controller buttons to predefined actions</p>
+        
+        <div class="controller-info">
+            <strong>Controller:</strong> {{ controller_type }}
+        </div>
+
+        <div class="nav-links">
+            <a href="/button-mapping" class="nav-link">⚙️ Manage Actions</a>
+            <a href="/map-joysticks" class="nav-link">🕹️ Map Joysticks</a>
+        </div>
+
+        <div class="info-box">
+            <h3>📝 How it works</h3>
+            <p>Select a button and choose which action should be triggered when that button is pressed.</p>
+            <p>Actions are created in the "Action Configuration" page.</p>
+        </div>
+
+        <!-- New Mapping Form -->
+        <div class="new-mapping-form">
+            <h2 style="margin-top: 0; color: #667eea;">➕ Map Button to Action</h2>
+            <form method="POST" action="/map-buttons/save">
+                <div class="form-group">
+                    <label for="button_name">Button:</label>
+                    <select id="button_name" name="button_name" required>
+                        <option value="">-- Select a Button --</option>
+                        {% for button in buttons %}
+                        <option value="{{ button }}">{{ button }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="placeholder-hint">Choose the controller button</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="action_name">Action:</label>
+                    <select id="action_name" name="action_name" required>
+                        <option value="">-- Select an Action --</option>
+                        {% for action_name in actions.keys() %}
+                        <option value="{{ action_name }}">{{ action_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="placeholder-hint">Choose the action to trigger</div>
+                    {% if not actions %}
+                    <div style="color: #dc3545; margin-top: 10px;">
+                        ⚠️ No actions available. <a href="/button-mapping" style="color: #667eea;">Create actions first</a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" {% if not actions %}disabled{% endif %}>
+                        💾 Save Mapping
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Existing Mappings -->
+        <h2 style="color: #667eea;">📋 Current Button Mappings</h2>
+        <div class="mappings-grid">
+            {% if button_mappings %}
+                {% for button_name, action_name in button_mappings.items() %}
+                <div class="mapping-card">
+                    <div class="button-name">🎮 {{ button_name }}</div>
+                    <div class="action-name">→ {{ action_name }}</div>
+                    
+                    {% if action_name in actions %}
+                    <div class="action-preview">
+                        {% for topic, message in actions[action_name].tuples %}
+                        {{ topic }}<br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    <form method="POST" action="/map-buttons/delete" style="margin-top: 10px;">
+                        <input type="hidden" name="button_name" value="{{ button_name }}">
+                        <button type="submit" class="delete-btn" onclick="return confirm('Unmap this button?')">
+                            🗑️ Unmap
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #999;">
+                    <p style="font-size: 18px;">No button mappings yet</p>
+                    <p>Map buttons to actions using the form above!</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="button-group">
+            <button type="button" class="back-button" onclick="window.location.href='/'">
+                ← Back to Home
+            </button>
+        </div>
+    </div>
+</body>
+</html>

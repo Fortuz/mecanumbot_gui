@@ -1,26 +1,20 @@
 from flask import Flask, request, render_template, redirect, url_for
 import os
-import csv
 import sqlite3
+import csv
 from datetime import datetime
-import pygame
-import sys
-import requests
-import json
 
 app = Flask(__name__)
 
 # -------- Storage config --------
 BASE_DIR = "/host_docs"  # bind-mounted host Documents
-USE_SQLITE = False       # set True to use SQLite
 
-# CSV files
-ACTIONS_CSV = os.path.join(BASE_DIR, "actions.csv")
-MAPPINGS_CSV = os.path.join(BASE_DIR, "mappings.csv")
+# Actions database
+ACTIONS_DB = os.path.join(BASE_DIR, "actions.db")
 
-# SQLite paths
-SQLITE_PATH = os.path.join(BASE_DIR, "data")
-SQLITE_DB = os.path.join(SQLITE_PATH, "app.db")
+# Action types
+ACTION_TYPE_BUTTON = "button"
+ACTION_TYPE_JOYSTICK = "joystick"
 
 # Default Xbox 360 controller buttons
 XBOX360_BUTTONS = [
@@ -49,133 +43,18 @@ PS4_BUTTONS = [
 CONTROLLER_BUTTONS = []
 CONTROLLER_TYPE = ""
 
+# Joystick options (for joystick action mapping)
+CONTROLLER_JOYSTICKS = ["Left Stick", "Right Stick"]
+
 def detect_controller():
     """Detect plugged-in controller and return its type and available buttons."""
     global CONTROLLER_BUTTONS, CONTROLLER_TYPE
     
-    # Check if running in Docker
-    in_docker = os.path.exists('/.dockerenv') or os.environ.get('container') == 'docker'
-    
-    # Try to get controller info from bridge service first (for Docker)
-    if in_docker:
-        try:
-            # Try to connect to host bridge service
-            # Docker's host.docker.internal or gateway IP
-            bridge_urls = [
-                "http://host.docker.internal:8899/controller-info",
-                "http://172.17.0.1:8899/controller-info",  # Default Docker gateway
-                "http://192.168.1.1:8899/controller-info",  # Common router IP
-                "http://10.0.0.1:8899/controller-info"      # Another common gateway
-            ]
-            
-            for url in bridge_urls:
-                try:
-                    print(f"Trying to connect to bridge service at {url}...")
-                    response = requests.get(url, timeout=2)
-                    if response.status_code == 200:
-                        controller_data = response.json()
-                        
-                        CONTROLLER_TYPE = controller_data.get("controller_type", "Unknown") + " (via Bridge)"
-                        CONTROLLER_BUTTONS = controller_data.get("controller_buttons", [])
-                        detected = controller_data.get("controller_detected", False)
-                        
-                        print(f"✓ Connected to bridge service!")
-                        print(f"Controller: {controller_data.get('controller_type', 'Unknown')}")
-                        print(f"Buttons: {len(CONTROLLER_BUTTONS)}")
-                        
-                        return detected
-                        
-                except requests.exceptions.RequestException:
-                    continue
-            
-            print("❌ Could not connect to bridge service!")
-            print("Make sure to run the controller_bridge.py script on the host system first.")
-            print("Expected bridge service at: http://host.docker.internal:8899")
-            
-        except Exception as e:
-            print(f"Bridge service error: {e}")
-    
-    # Fallback to direct detection (for non-Docker or when bridge fails)
-    try:
-        # Initialize pygame for controller detection
-        pygame.init()
-        pygame.joystick.init()
-        
-        # Check if any controllers are connected
-        joystick_count = pygame.joystick.get_count()
-        
-        if joystick_count == 0:
-            if in_docker:
-                print("No controllers detected! (Running in Docker - try using bridge service)")
-                print("1. Run: python controller_bridge.py (on host)")
-                print("2. Restart this container")
-            else:
-                print("No controllers detected!")
-            CONTROLLER_TYPE = "None" + (" (Docker)" if in_docker else "")
-            CONTROLLER_BUTTONS = []
-            return False
-        
-        # Get the first controller
-        joystick = pygame.joystick.Joystick(0)
-        joystick.init()
-        
-        controller_name = joystick.get_name().lower()
-        print(f"Controller detected: {joystick.get_name()}" + (" (in Docker)" if in_docker else ""))
-        
-        # Check if it's an Xbox 360 controller
-        if "xbox 360" in controller_name or "xbox360" in controller_name or "360" in controller_name:
-            CONTROLLER_TYPE = "Xbox 360" + (" (Docker)" if in_docker else "")
-            CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
-            print("Using Xbox 360 button layout")
-        # Check if it's a PS4 controller
-        elif "ps4" in controller_name or "dualshock 4" in controller_name or "wireless controller" in controller_name:
-            CONTROLLER_TYPE = "PS4 Controller" + (" (Docker)" if in_docker else "")
-            CONTROLLER_BUTTONS = PS4_BUTTONS.copy()
-            print("Using PS4 controller button layout")
-        else:
-            # For other controllers, detect available buttons dynamically
-            CONTROLLER_TYPE = joystick.get_name() + (" (Docker)" if in_docker else "")
-            CONTROLLER_BUTTONS = []
-            
-            # Get number of buttons
-            num_buttons = joystick.get_numbuttons()
-            for i in range(num_buttons):
-                CONTROLLER_BUTTONS.append(f"Button_{i}")
-            
-            # Get number of axes (analog sticks, triggers)
-            num_axes = joystick.get_numaxes()
-            for i in range(num_axes):
-                CONTROLLER_BUTTONS.append(f"Axis_{i}_Positive")
-                CONTROLLER_BUTTONS.append(f"Axis_{i}_Negative")
-            
-            # Get number of hats (d-pads)
-            num_hats = joystick.get_numhats()
-            for i in range(num_hats):
-                CONTROLLER_BUTTONS.append(f"Hat_{i}_Up")
-                CONTROLLER_BUTTONS.append(f"Hat_{i}_Down")
-                CONTROLLER_BUTTONS.append(f"Hat_{i}_Left")
-                CONTROLLER_BUTTONS.append(f"Hat_{i}_Right")
-            
-            print(f"Detected {num_buttons} buttons, {num_axes} axes, {num_hats} hats")
-            print(f"Using dynamic button layout: {CONTROLLER_BUTTONS}")
-        
-        return True
-        
-    except Exception as e:
-        error_msg = f"Error detecting controller: {e}"
-        if in_docker:
-            error_msg += " (Docker environment - consider using bridge service)"
-        print(error_msg)
-        CONTROLLER_TYPE = "Error" + (" (Docker)" if in_docker else "")
-        CONTROLLER_BUTTONS = []
-        return False
-    finally:
-        # Clean up pygame
-        try:
-            pygame.joystick.quit()
-            pygame.quit()
-        except:
-            pass
+    # Use Xbox 360 layout as default for ROS2 environment
+    print("Using Xbox 360 controller layout (standard for ROS2 joy node)")
+    CONTROLLER_TYPE = "Xbox 360"
+    CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
+    return True
 
 # Detect controller on startup
 print("Detecting controller...")
@@ -185,95 +64,275 @@ if not controller_detected:
     CONTROLLER_TYPE = "Xbox 360 (Fallback)"
     CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
 
-# -------- helpers --------
+# -------- Actions Database Functions --------
 
 def ensure_dirs():
+    """Ensure base directory exists"""
     os.makedirs(BASE_DIR, exist_ok=True)
-    if USE_SQLITE:
-        os.makedirs(SQLITE_PATH, exist_ok=True)
 
-def init_sqlite():
+def init_actions_db():
+    """Initialize the actions database"""
     ensure_dirs()
-    with sqlite3.connect(SQLITE_DB) as conn:
+    with sqlite3.connect(ACTIONS_DB) as conn:
         c = conn.cursor()
+        # Table for actions
         c.execute("""CREATE TABLE IF NOT EXISTS actions (
-            action_name TEXT PRIMARY KEY
-        )""")
-        c.execute("""CREATE TABLE IF NOT EXISTS mappings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            action_type TEXT NOT NULL DEFAULT 'button',
+            created_utc TEXT NOT NULL
+        )""")
+        
+        # Migration: Add action_type column if it doesn't exist
+        try:
+            c.execute("SELECT action_type FROM actions LIMIT 1")
+        except sqlite3.OperationalError:
+            # Column doesn't exist, add it
+            print("Migrating database: Adding action_type column...")
+            c.execute("ALTER TABLE actions ADD COLUMN action_type TEXT NOT NULL DEFAULT 'button'")
+            conn.commit()
+        
+        # Table for action tuples
+        c.execute("""CREATE TABLE IF NOT EXISTS action_tuples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action_id INTEGER NOT NULL,
+            topic TEXT NOT NULL,
+            message TEXT NOT NULL,
+            tuple_order INTEGER NOT NULL,
+            FOREIGN KEY (action_id) REFERENCES actions(id) ON DELETE CASCADE
+        )""")
+        # Table for button mappings
+        c.execute("""CREATE TABLE IF NOT EXISTS button_mappings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            button_name TEXT UNIQUE NOT NULL,
+            action_id INTEGER NOT NULL,
             created_utc TEXT NOT NULL,
-            button TEXT NOT NULL,
-            action_name TEXT NOT NULL
+            FOREIGN KEY (action_id) REFERENCES actions(id) ON DELETE CASCADE
+        )""")
+        # Table for joystick mappings
+        c.execute("""CREATE TABLE IF NOT EXISTS joystick_mappings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            joystick_name TEXT UNIQUE NOT NULL,
+            action_id INTEGER NOT NULL,
+            created_utc TEXT NOT NULL,
+            FOREIGN KEY (action_id) REFERENCES actions(id) ON DELETE CASCADE
         )""")
         conn.commit()
 
-def seed_actions_if_empty_sqlite():
-    init_sqlite()
-    defaults = ["Jump", "Shoot", "Run", "Reload", "Crouch", "Interact", "Pause", "Sprint", "Melee", "Use"]
-    with sqlite3.connect(SQLITE_DB) as conn:
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM actions")
-        cnt = c.fetchone()[0]
-        if cnt == 0:
-            c.executemany("INSERT OR IGNORE INTO actions(action_name) VALUES (?)",
-                          [(a,) for a in defaults])
-            conn.commit()
-
-def read_actions_sqlite():
-    seed_actions_if_empty_sqlite()
-    with sqlite3.connect(SQLITE_DB) as conn:
-        c = conn.cursor()
-        c.execute("SELECT action_name FROM actions ORDER BY action_name COLLATE NOCASE")
-        return [row[0] for row in c.fetchall()]
-
-def save_mappings_sqlite(mapping_dict):
-    init_sqlite()
+def save_action_to_db(action_name, tuples, action_type=ACTION_TYPE_BUTTON):
+    """Save an action with its tuples to the database"""
+    init_actions_db()
     now = datetime.utcnow().isoformat()
-    rows = [(now, btn, act) for btn, act in mapping_dict.items() if act]
-    if not rows:
-        return
-    with sqlite3.connect(SQLITE_DB) as conn:
-        c = conn.cursor()
-        c.executemany(
-            "INSERT INTO mappings (created_utc, button, action_name) VALUES (?, ?, ?)", rows
-        )
-        conn.commit()
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            
+            # Check if action already exists
+            c.execute("SELECT id FROM actions WHERE name = ?", (action_name,))
+            existing = c.fetchone()
+            
+            if existing:
+                # Update existing action - delete old tuples first
+                action_id = existing[0]
+                c.execute("DELETE FROM action_tuples WHERE action_id = ?", (action_id,))
+                c.execute("UPDATE actions SET action_type = ? WHERE id = ?", (action_type, action_id))
+            else:
+                # Insert new action
+                c.execute("INSERT INTO actions (name, action_type, created_utc) VALUES (?, ?, ?)", 
+                         (action_name, action_type, now))
+                action_id = c.lastrowid
+            
+            # Insert tuples
+            for idx, (topic, message) in enumerate(tuples):
+                c.execute("""INSERT INTO action_tuples 
+                            (action_id, topic, message, tuple_order) 
+                            VALUES (?, ?, ?, ?)""",
+                         (action_id, topic, message, idx))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error saving action to database: {e}")
+        return False
 
-def seed_actions_if_empty_csv():
-    ensure_dirs()
-    if not os.path.exists(ACTIONS_CSV):
-        defaults = ["Jump", "Shoot", "Run", "Reload", "Crouch", "Interact", "Pause", "Sprint", "Melee", "Use"]
-        with open(ACTIONS_CSV, "w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            for a in defaults:
-                w.writerow([a])
+def get_all_actions_from_db(action_type=None):
+    """Get all actions from the database, optionally filtered by type"""
+    init_actions_db()
+    actions = {}
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            
+            # Get all actions, optionally filtered by type
+            if action_type:
+                c.execute("SELECT id, name, action_type FROM actions WHERE action_type = ? ORDER BY name", (action_type,))
+            else:
+                c.execute("SELECT id, name, action_type FROM actions ORDER BY name")
+            action_rows = c.fetchall()
+            
+            for action_id, action_name, act_type in action_rows:
+                # Get tuples for this action
+                c.execute("""SELECT topic, message FROM action_tuples 
+                            WHERE action_id = ? ORDER BY tuple_order""", 
+                         (action_id,))
+                tuples = c.fetchall()
+                
+                actions[action_name] = {
+                    "id": action_id,
+                    "type": act_type,
+                    "tuples": tuples
+                }
+        
+        return actions
+    except Exception as e:
+        print(f"Error loading actions from database: {e}")
+        return {}
 
-def read_actions_csv():
-    seed_actions_if_empty_csv()
-    actions = []
-    with open(ACTIONS_CSV, "r", newline="", encoding="utf-8") as f:
-        r = csv.reader(f)
-        for row in r:
-            if row and row[0].strip():
-                actions.append(row[0].strip())
-    # dedupe & sort
-    actions = sorted(list(dict.fromkeys(actions)), key=lambda x: x.lower())
-    return actions
+def delete_action_from_db(action_name):
+    """Delete an action from the database"""
+    init_actions_db()
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM actions WHERE name = ?", (action_name,))
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error deleting action: {e}")
+        return False
 
-def save_mappings_csv(mapping_dict):
-    ensure_dirs()
-    new_file = not os.path.exists(MAPPINGS_CSV)
-    with open(MAPPINGS_CSV, "a", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        if new_file:
-            w.writerow(["created_utc", "button", "action_name"])
-        now = datetime.utcnow().isoformat()
-        for btn, act in mapping_dict.items():
-            if act:
-                w.writerow([now, btn, act])
+def save_button_mapping_to_db(button_name, action_name):
+    """Save a button to action mapping to the database"""
+    init_actions_db()
+    now = datetime.utcnow().isoformat()
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            
+            # Get action_id
+            c.execute("SELECT id FROM actions WHERE name = ?", (action_name,))
+            result = c.fetchone()
+            if not result:
+                return False
+            
+            action_id = result[0]
+            
+            # Insert or update button mapping
+            c.execute("""INSERT OR REPLACE INTO button_mappings 
+                        (button_name, action_id, created_utc) 
+                        VALUES (?, ?, ?)""",
+                     (button_name, action_id, now))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error saving button mapping: {e}")
+        return False
 
-def storage_hint_text():
-    return (f"SQLite: {SQLITE_DB}" if USE_SQLITE else f"CSV: {ACTIONS_CSV} (actions), {MAPPINGS_CSV} (mappings)")
+def get_all_button_mappings_from_db():
+    """Get all button to action mappings from the database"""
+    init_actions_db()
+    mappings = {}
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            
+            c.execute("""SELECT bm.button_name, a.name 
+                        FROM button_mappings bm
+                        JOIN actions a ON bm.action_id = a.id
+                        ORDER BY bm.button_name""")
+            
+            for button_name, action_name in c.fetchall():
+                mappings[button_name] = action_name
+        
+        return mappings
+    except Exception as e:
+        print(f"Error loading button mappings: {e}")
+        return {}
+
+def delete_button_mapping_from_db(button_name):
+    """Delete a button mapping from the database"""
+    init_actions_db()
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM button_mappings WHERE button_name = ?", (button_name,))
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error deleting button mapping: {e}")
+        return False
+
+def save_joystick_mapping_to_db(joystick_name, action_name):
+    """Save a joystick to action mapping to the database"""
+    init_actions_db()
+    now = datetime.utcnow().isoformat()
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            
+            # Get action_id
+            c.execute("SELECT id FROM actions WHERE name = ?", (action_name,))
+            result = c.fetchone()
+            if not result:
+                return False
+            
+            action_id = result[0]
+            
+            # Insert or update joystick mapping
+            c.execute("""INSERT OR REPLACE INTO joystick_mappings 
+                        (joystick_name, action_id, created_utc) 
+                        VALUES (?, ?, ?)""",
+                     (joystick_name, action_id, now))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error saving joystick mapping: {e}")
+        return False
+
+def get_all_joystick_mappings_from_db():
+    """Get all joystick to action mappings from the database"""
+    init_actions_db()
+    mappings = {}
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            
+            c.execute("""SELECT jm.joystick_name, a.name 
+                        FROM joystick_mappings jm
+                        JOIN actions a ON jm.action_id = a.id
+                        ORDER BY jm.joystick_name""")
+            
+            for joystick_name, action_name in c.fetchall():
+                mappings[joystick_name] = action_name
+        
+        return mappings
+    except Exception as e:
+        print(f"Error loading joystick mappings: {e}")
+        return {}
+
+def delete_joystick_mapping_from_db(joystick_name):
+    """Delete a joystick mapping from the database"""
+    init_actions_db()
+    
+    try:
+        with sqlite3.connect(ACTIONS_DB) as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM joystick_mappings WHERE joystick_name = ?", (joystick_name,))
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error deleting joystick mapping: {e}")
+        return False
 
 def get_controller_image():
     """Get the appropriate controller image filename based on detected controller type"""
@@ -292,50 +351,42 @@ def index():
         "index.html",
         msg="",
         controller_type=CONTROLLER_TYPE,
-        controller_detected=controller_detected,
-        storage_hint=storage_hint_text()
+        controller_detected=controller_detected
     )
 
 @app.post("/save")
 def save():
-    # Save the two names (demo: append to a simple CSV)
+    # Save the user name with timestamp
     user_name = (request.form.get("user_name") or "").strip()
     volunteer_name = (request.form.get("volunteer_name") or "").strip()
-    if not user_name or not volunteer_name:
+    
+    if not user_name:
         return render_template("index.html", 
-                                    msg="Please fill in both fields.", 
+                                    msg="Please enter a user name.", 
                                     controller_type=CONTROLLER_TYPE,
-                                    controller_detected=controller_detected,
-                                    storage_hint=storage_hint_text())
+                                    controller_detected=controller_detected)
 
-    # Minimal persistence of names as log (CSV)
+    # Save name and current time to CSV
     names_csv = os.path.join(BASE_DIR, "submissions.csv")
     os.makedirs(BASE_DIR, exist_ok=True)
     new_file = not os.path.exists(names_csv)
     with open(names_csv, "a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         if new_file:
-            w.writerow(["created_utc", "user_name", "volunteer_name"])
-        w.writerow([datetime.utcnow().isoformat(), user_name, volunteer_name])
+            w.writerow(["timestamp", "user_name"])
+        w.writerow([datetime.utcnow().isoformat(), user_name])
 
-    # Go to the controller configuration screen
-    return redirect(url_for("configure"))
+    # Redirect back to home
+    return redirect(url_for("index"))
 
 @app.get("/configure")
 def configure():
-    # Load actions from storage
-    if USE_SQLITE:
-        actions = read_actions_sqlite()
-    else:
-        actions = read_actions_csv()
+    # Return the HTML template with the dynamic button list
     return render_template(
         "configure.html",
-        actions=actions,
+        actions=[],
         buttons=CONTROLLER_BUTTONS,
-        controller_type=CONTROLLER_TYPE,
-        controller_image=get_controller_image(),
-        use_sqlite=USE_SQLITE,
-        actions_source=(SQLITE_DB if USE_SQLITE else ACTIONS_CSV)
+        controller_type=CONTROLLER_TYPE
     )
 
 @app.post("/redetect-controller")
@@ -344,46 +395,192 @@ def redetect_controller():
     global CONTROLLER_BUTTONS, CONTROLLER_TYPE
     print("Re-detecting controller...")
     
-    # If in Docker, try to trigger bridge service re-detection
-    in_docker = os.path.exists('/.dockerenv') or os.environ.get('container') == 'docker'
-    if in_docker:
-        try:
-            bridge_urls = [
-                "http://host.docker.internal:8899/detect",
-                "http://172.17.0.1:8899/detect",
-                "http://192.168.1.1:8899/detect",
-                "http://10.0.0.1:8899/detect"
-            ]
-            
-            for url in bridge_urls:
-                try:
-                    response = requests.get(url, timeout=2)
-                    if response.status_code == 200:
-                        print("Triggered bridge service re-detection")
-                        break
-                except requests.exceptions.RequestException:
-                    continue
-        except Exception as e:
-            print(f"Could not trigger bridge re-detection: {e}")
-    
     detect_controller()
     return redirect(url_for("configure"))
 
 @app.post("/map")
 def save_mapping():
-    # Build dict: button -> action (skip empty)
-    mapping = {}
-    for btn in CONTROLLER_BUTTONS:
-        val = (request.form.get(f"btn_{btn}") or "").strip()
-        mapping[btn] = val
-
-    # Save to storage
-    if USE_SQLITE:
-        save_mappings_sqlite(mapping)
-    else:
-        save_mappings_csv(mapping)
-
+    # Legacy route - no longer used with new action-based system
     return render_template("success.html")
+
+@app.get("/button-mapping")
+def button_mapping():
+    """Show action configuration page"""
+    # Load existing actions from database
+    actions = get_all_actions_from_db()
+    return render_template(
+        "button_mapping.html",
+        buttons=CONTROLLER_BUTTONS,
+        controller_type=CONTROLLER_TYPE,
+        mappings=actions
+    )
+
+@app.post("/button-mapping/create")
+def create_button_mapping():
+    """Create a new action"""
+    action_name = request.form.get("mapping_name", "").strip()
+    tuple_list_raw = request.form.get("tuple_list", "").strip()
+    action_type = request.form.get("action_type", ACTION_TYPE_BUTTON).strip()
+    
+    if not action_name or not tuple_list_raw:
+        return redirect(url_for("button_mapping"))
+    
+    # Parse tuple list (one tuple per line: topic, message)
+    tuples = []
+    for line in tuple_list_raw.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Split by first comma to separate topic and message
+        if ',' in line:
+            parts = line.split(',', 1)
+            topic = parts[0].strip()
+            message = parts[1].strip() if len(parts) > 1 else ""
+            tuples.append((topic, message))
+    
+    if not tuples:
+        return redirect(url_for("button_mapping"))
+    
+    # Save action to database with type
+    save_action_to_db(action_name, tuples, action_type)
+    
+    return redirect(url_for("button_mapping"))
+
+@app.post("/button-mapping/delete")
+def delete_button_mapping():
+    """Delete an action"""
+    action_name = request.form.get("action_name", "").strip()
+    
+    if action_name:
+        delete_action_from_db(action_name)
+    
+    return redirect(url_for("button_mapping"))
+
+@app.get("/map-buttons")
+def map_buttons():
+    """Show button to action mapping page"""
+    # Only get button-type actions (not joystick actions)
+    actions = get_all_actions_from_db(action_type=ACTION_TYPE_BUTTON)
+    button_mappings = get_all_button_mappings_from_db()
+    
+    return render_template(
+        "map_buttons.html",
+        buttons=CONTROLLER_BUTTONS,
+        controller_type=CONTROLLER_TYPE,
+        actions=actions,
+        button_mappings=button_mappings
+    )
+
+@app.post("/map-buttons/save")
+def save_button_action_mapping():
+    """Save a button to action mapping"""
+    button_name = request.form.get("button_name", "").strip()
+    action_name = request.form.get("action_name", "").strip()
+    
+    if button_name and action_name:
+        save_button_mapping_to_db(button_name, action_name)
+        
+        # Publish updated mappings to ROS2
+        publish_button_action_mappings()
+    
+    return redirect(url_for("map_buttons"))
+
+@app.get("/map-joysticks")
+def map_joysticks():
+    """Show joystick to action mapping page"""
+    # Only get joystick-type actions
+    actions = get_all_actions_from_db(action_type=ACTION_TYPE_JOYSTICK)
+    joystick_mappings = get_all_joystick_mappings_from_db()
+    
+    return render_template(
+        "map_joysticks.html",
+        joysticks=CONTROLLER_JOYSTICKS,
+        controller_type=CONTROLLER_TYPE,
+        actions=actions,
+        joystick_mappings=joystick_mappings
+    )
+
+@app.post("/map-joysticks/save")
+def save_joystick_action_mapping():
+    """Save a joystick to action mapping"""
+    joystick_name = request.form.get("joystick_name", "").strip()
+    action_name = request.form.get("action_name", "").strip()
+    
+    if joystick_name and action_name:
+        save_joystick_mapping_to_db(joystick_name, action_name)
+        
+        # Publish updated mappings to ROS2
+        publish_joystick_action_mappings()
+    
+    return redirect(url_for("map_joysticks"))
+
+@app.post("/map-joysticks/delete")
+def delete_joystick_action_mapping():
+    """Delete a joystick to action mapping"""
+    joystick_name = request.form.get("joystick_name", "").strip()
+    
+    if joystick_name:
+        delete_joystick_mapping_from_db(joystick_name)
+        
+        # Publish updated mappings to ROS2
+        publish_joystick_action_mappings()
+    
+    return redirect(url_for("map_joysticks"))
+
+def publish_joystick_action_mappings():
+    """Publish all joystick->action mappings to ROS2"""
+    # Get all joystick mappings
+    joystick_mappings = get_all_joystick_mappings_from_db()
+    actions = get_all_actions_from_db()
+    
+    # Build complete mapping data for ROS2
+    ros2_data = {}
+    for joystick_name, action_name in joystick_mappings.items():
+        if action_name in actions:
+            ros2_data[joystick_name] = {
+                "action_name": action_name,
+                "tuples": actions[action_name]["tuples"]
+            }
+    
+    print(f"Joystick mappings ready to publish: {len(ros2_data)} joysticks")
+    # Note: ROS2 publishing handled by external ROS2 nodes
+    return ros2_data
+
+@app.post("/map-buttons/delete")
+def delete_button_action_mapping():
+    """Delete a button to action mapping"""
+    button_name = request.form.get("button_name", "").strip()
+    
+    if button_name:
+        delete_button_mapping_from_db(button_name)
+        
+        # Publish updated mappings to ROS2
+        publish_button_action_mappings()
+    
+    return redirect(url_for("map_buttons"))
+
+def publish_button_action_mappings():
+    """Publish all button->action mappings to ROS2"""
+    # Get all button mappings
+    button_mappings = get_all_button_mappings_from_db()
+    actions = get_all_actions_from_db()
+    
+    # Build complete mapping data for ROS2
+    ros2_data = {}
+    for button_name, action_name in button_mappings.items():
+        if action_name in actions:
+            ros2_data[button_name] = {
+                "action_name": action_name,
+                "tuples": actions[action_name]["tuples"]
+            }
+    
+    print(f"Button mappings ready to publish: {len(ros2_data)} buttons")
+    # Note: ROS2 publishing handled by external ROS2 nodes
+    #kell egy topic
+    return ros2_data
+
+# Button and joystick mappings are stored in database and accessed by ROS2 nodes directly
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)

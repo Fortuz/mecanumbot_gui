@@ -9,6 +9,9 @@
     label { font-weight: 600; }
     input[type=text] { padding: .5rem; border: 1px solid #cbd5e1; border-radius: .5rem; }
     button { padding: .6rem 1rem; border-radius: .5rem; border: 1px solid #cbd5e1; cursor: pointer; }
+    .button-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; }
+    .button-secondary { background: white; }
+    .button-group { display: flex; gap: 1rem; margin-top: 1rem; }
     .err { color: #7f1d1d; background: #fee2e2; padding: .5rem .75rem; border-radius: .5rem; }
     .hint { color: #475569; }
     .controller-status { background: #f0f9ff; padding: 1rem; border-radius: .5rem; margin-bottom: 1rem; }
@@ -36,8 +39,21 @@
       <label for="volunteer_name">Volunteer name</label>
       <input type="text" id="volunteer_name" name="volunteer_name" placeholder="e.g. Jamie Doe">
     </div>
-    <button type="submit">Save & Configure Controller</button>
+    <button type="submit">Save and Start</button>
   </form>
+  
+  <div class="button-group">
+    <button class="button-primary" onclick="window.location.href='/button-mapping'">
+      ⚙️ Configure Actions
+    </button>
+    <button class="button-primary" onclick="window.location.href='/map-buttons'">
+      🎮 Map Buttons to Actions
+    </button>
+    <button class="button-primary" onclick="window.location.href='/map-joysticks'">
+      🕹️ Map Joysticks to Actions
+    </button>
+  </div>
+  
   <p class="hint">Storage: {{ storage_hint }}</p>
 </body>
 </html>
