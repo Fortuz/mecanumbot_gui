@@ -5,54 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Button Mapping Configuration</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
+            padding: 20px;
+            color: #e4e4e7;
         }
         .container {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(30, 30, 46, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         h1 {
-            color: #333;
+            color: #60a5fa;
             text-align: center;
             margin-bottom: 10px;
+            font-size: 32px;
+            font-weight: 700;
         }
         .subtitle {
             text-align: center;
-            color: #666;
+            color: #94a3b8;
             margin-bottom: 30px;
-            font-size: 14px;
+            font-size: 16px;
         }
         .controller-info {
-            background: #f0f4ff;
+            background: rgba(96, 165, 250, 0.1);
+            border: 1px solid rgba(96, 165, 250, 0.3);
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-bottom: 30px;
             text-align: center;
         }
         .controller-info strong {
-            color: #667eea;
+            color: #60a5fa;
         }
         .info-box {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
         }
         .info-box h3 {
             margin-top: 0;
-            color: #856404;
+            color: #fbbf24;
         }
         .info-box code {
-            background: #fff;
+            background: rgba(15, 23, 42, 0.6);
+            color: #60a5fa;
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
@@ -61,16 +74,16 @@
             margin-bottom: 30px;
         }
         .mapping-item {
-            background: #f8f9fa;
+            background: rgba(15, 23, 42, 0.6);
             padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            border: 1px solid rgba(100, 116, 139, 0.3);
             margin-bottom: 15px;
             transition: all 0.3s ease;
         }
         .mapping-item:hover {
-            border-color: #667eea;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+            border-color: rgba(96, 165, 250, 0.5);
+            box-shadow: 0 5px 15px rgba(96, 165, 250, 0.2);
         }
         .mapping-header {
             display: flex;
@@ -80,35 +93,37 @@
         }
         .mapping-name {
             font-weight: bold;
-            color: #667eea;
+            color: #60a5fa;
             font-size: 18px;
         }
         .delete-btn {
-            background: #dc3545;
+            background: rgba(239, 68, 68, 0.8);
             color: white;
             border: none;
             padding: 8px 15px;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
+            transition: all 0.3s ease;
         }
         .delete-btn:hover {
-            background: #c82333;
+            background: rgba(239, 68, 68, 1);
+            transform: translateY(-1px);
         }
         .tuple-list {
             margin-top: 10px;
         }
         .tuple-item {
-            background: white;
+            background: rgba(30, 30, 46, 0.8);
             padding: 10px;
-            border-radius: 5px;
+            border-radius: 8px;
             margin-bottom: 8px;
             display: flex;
             gap: 10px;
             align-items: center;
         }
         .tuple-number {
-            background: #667eea;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
             width: 25px;
             height: 25px;
@@ -123,12 +138,13 @@
             flex: 1;
             font-family: 'Courier New', monospace;
             font-size: 13px;
+            color: #cbd5e1;
         }
         .new-mapping-form {
-            background: #e8f4fd;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
             padding: 25px;
-            border-radius: 10px;
-            border: 2px solid #667eea;
+            border-radius: 12px;
             margin-bottom: 30px;
         }
         .form-group {
@@ -137,18 +153,22 @@
         label {
             display: block;
             font-weight: 600;
-            color: #555;
+            color: #cbd5e1;
             font-size: 14px;
             margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        input[type="text"], textarea {
+        input[type="text"], textarea, select {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
+            padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 8px;
             font-size: 14px;
+            color: #e4e4e7;
             box-sizing: border-box;
-            transition: border-color 0.3s;
+            transition: all 0.3s;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         textarea {
@@ -156,13 +176,18 @@
             min-height: 120px;
             resize: vertical;
         }
-        input[type="text"]:focus, textarea:focus {
+        input[type="text"]:focus, textarea:focus, select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #60a5fa;
+            background: rgba(15, 23, 42, 0.8);
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+        }
+        input::placeholder, textarea::placeholder {
+            color: #64748b;
         }
         .placeholder-hint {
             font-size: 12px;
-            color: #666;
+            color: #94a3b8;
             margin-top: 5px;
             font-style: italic;
         }
@@ -172,27 +197,33 @@
             justify-content: center;
             margin-top: 20px;
         }
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        button:not(.delete-btn) {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
             border: none;
             padding: 15px 40px;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-        button:hover {
+        button:not(.delete-btn):hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
         }
-        button:active {
+        button:not(.delete-btn):active {
             transform: translateY(0);
         }
         .back-button {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: rgba(100, 116, 139, 0.3) !important;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .back-button:hover {
+            background: rgba(100, 116, 139, 0.5) !important;
         }
         .sample-text {
             background: #e8f5e9;
@@ -216,8 +247,8 @@
         </div>
 
         <div style="text-align: center; margin-bottom: 20px;">
-            <a href="/map-buttons" style="background: linear-gradient(135deg, #48c6ef 0%, #6f86d6 100%); color: white; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; display: inline-block;">
-                🎮 Map Buttons to Actions
+            <a href="/map-controls" style="background: linear-gradient(135deg, #48c6ef 0%, #6f86d6 100%); color: white; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; display: inline-block;">
+                🎮 Map Controls to Actions
             </a>
         </div>
 
@@ -328,8 +359,8 @@ Note: X and Y will be replaced with actual joystick position (-1.0 to 1.0)</div>
         </div>
 
         <div class="button-group">
-            <button type="button" class="back-button" onclick="window.location.href='/'">
-                ← Back to Home
+            <button type="button" class="back-button" onclick="window.location.href='/dashboard?tab=settings'">
+                ← Back to Settings
             </button>
         </div>
     </div>

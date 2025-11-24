@@ -3,8 +3,52 @@ import os
 import sqlite3
 import csv
 from datetime import datetime
+import json
+import subprocess
 
 app = Flask(__name__)
+
+# -------- ROS2 Topic Publishing --------
+def publish_to_ros2_topic(topic, message_data):
+    """
+    Publish a message to a ROS2 topic using ros2 topic pub command.
+    This runs in a subprocess to avoid threading issues.
+    
+    The message_data is JSON-serialized and placed directly in msg.data field.
+    ROS nodes will parse it with json.loads(msg.data).
+    """
+    try:
+        # Serialize to JSON once - this becomes msg.data
+        json_data = json.dumps(message_data)
+        # Escape quotes for shell command
+        escaped_json = json_data.replace('"', '\\"')
+        cmd = [
+            'ros2', 'topic', 'pub', '--once',
+            topic,
+            'std_msgs/msg/String',
+            f'{{"data": "{escaped_json}"}}'
+        ]
+        subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(f"Published to {topic}: {message_data}")
+    except Exception as e:
+        print(f"Failed to publish to ROS2 topic {topic}: {e}")
+
+def get_controller_status():
+    """
+    Check controller connection status by reading from status file.
+    The xbox_controller_node writes this file with current status.
+    Returns dict with connection info or None if unable to read.
+    """
+    try:
+        status_file = os.path.join(BASE_DIR, "controller_status.json")
+        if os.path.exists(status_file):
+            with open(status_file, 'r') as f:
+                status = json.load(f)
+                return status
+        return None
+    except (json.JSONDecodeError, Exception) as e:
+        print(f"Failed to get controller status: {e}")
+        return None
 
 # -------- Storage config --------
 BASE_DIR = "/host_docs"  # bind-mounted host Documents
@@ -17,26 +61,14 @@ ACTION_TYPE_BUTTON = "button"
 ACTION_TYPE_JOYSTICK = "joystick"
 
 # Default Xbox 360 controller buttons
+# Note: Names match xbox_controller_node.py button mapping
 XBOX360_BUTTONS = [
     "A", "B", "X", "Y",
-    "LB", "RB", "LT", "RT",
-    "Start", "Back",
-    "LS_Click", "RS_Click",           # stick clicks
-    "LStickUp", "LStickDown", "LStickLeft", "LStickRight",
-    "RStickUp", "RStickDown", "RStickLeft", "RStickRight",
+    "LB", "RB",                       # Bumpers
+    "BACK", "START", "XBOX",         # Center buttons
+    "LS", "RS",                       # Stick clicks (Left/Right Stick buttons)
+    "LT", "RT",                       # Triggers (as buttons)
     "DPadUp", "DPadDown", "DPadLeft", "DPadRight"
-]
-
-# PS4 controller buttons (DualShock 4)
-PS4_BUTTONS = [
-    "Cross", "Circle", "Square", "Triangle",
-    "L1", "R1", "L2", "R2",
-    "Share", "Options", "PS",
-    "L3", "R3",                       # stick clicks
-    "LStickUp", "LStickDown", "LStickLeft", "LStickRight",
-    "RStickUp", "RStickDown", "RStickLeft", "RStickRight",
-    "DPadUp", "DPadDown", "DPadLeft", "DPadRight",
-    "Touchpad_Click", "Touchpad_Touch"  # PS4 specific features
 ]
 
 # Global variable to store detected controller buttons
@@ -58,11 +90,8 @@ def detect_controller():
 
 # Detect controller on startup
 print("Detecting controller...")
-controller_detected = detect_controller()
-if not controller_detected:
-    print("Warning: No controller detected or error occurred. Using Xbox 360 layout as fallback.")
-    CONTROLLER_TYPE = "Xbox 360 (Fallback)"
-    CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
+detect_controller()
+print(f"Using controller layout: {CONTROLLER_TYPE}")
 
 # -------- Actions Database Functions --------
 
@@ -151,6 +180,15 @@ def save_action_to_db(action_name, tuples, action_type=ACTION_TYPE_BUTTON):
                          (action_id, topic, message, idx))
             
             conn.commit()
+            
+            # Publish to ROS2 topic
+            publish_to_ros2_topic('/mecanumbot/action_config', {
+                'name': action_name,
+                'type': action_type,
+                'tuples': tuples,
+                'operation': 'add'
+            })
+            
             return True
     except Exception as e:
         print(f"Error saving action to database: {e}")
@@ -199,6 +237,13 @@ def delete_action_from_db(action_name):
             c = conn.cursor()
             c.execute("DELETE FROM actions WHERE name = ?", (action_name,))
             conn.commit()
+            
+            # Publish to ROS2 topic
+            publish_to_ros2_topic('/mecanumbot/action_config', {
+                'name': action_name,
+                'operation': 'delete'
+            })
+            
             return True
     except Exception as e:
         print(f"Error deleting action: {e}")
@@ -228,6 +273,14 @@ def save_button_mapping_to_db(button_name, action_name):
                      (button_name, action_id, now))
             
             conn.commit()
+            
+            # Publish to ROS2 topic
+            publish_to_ros2_topic('/mecanumbot/button_mapping', {
+                'button': button_name,
+                'action': action_name,
+                'operation': 'add'
+            })
+            
             return True
     except Exception as e:
         print(f"Error saving button mapping: {e}")
@@ -262,8 +315,25 @@ def delete_button_mapping_from_db(button_name):
     try:
         with sqlite3.connect(ACTIONS_DB) as conn:
             c = conn.cursor()
+            
+            # Get the action name before deleting
+            c.execute("""SELECT a.name FROM button_mappings bm
+                        JOIN actions a ON bm.action_id = a.id
+                        WHERE bm.button_name = ?""", (button_name,))
+            result = c.fetchone()
+            action_name = result[0] if result else None
+            
             c.execute("DELETE FROM button_mappings WHERE button_name = ?", (button_name,))
             conn.commit()
+            
+            # Publish to ROS2 topic
+            if action_name:
+                publish_to_ros2_topic('/mecanumbot/button_mapping', {
+                    'button': button_name,
+                    'action': action_name,
+                    'operation': 'delete'
+                })
+            
             return True
     except Exception as e:
         print(f"Error deleting button mapping: {e}")
@@ -293,6 +363,14 @@ def save_joystick_mapping_to_db(joystick_name, action_name):
                      (joystick_name, action_id, now))
             
             conn.commit()
+            
+            # Publish to ROS2 topic
+            publish_to_ros2_topic('/mecanumbot/joystick_mapping', {
+                'joystick': joystick_name,
+                'action': action_name,
+                'operation': 'add'
+            })
+            
             return True
     except Exception as e:
         print(f"Error saving joystick mapping: {e}")
@@ -327,44 +405,49 @@ def delete_joystick_mapping_from_db(joystick_name):
     try:
         with sqlite3.connect(ACTIONS_DB) as conn:
             c = conn.cursor()
+            
+            # Get the action name before deleting
+            c.execute("""SELECT a.name FROM joystick_mappings jm
+                        JOIN actions a ON jm.action_id = a.id
+                        WHERE jm.joystick_name = ?""", (joystick_name,))
+            result = c.fetchone()
+            action_name = result[0] if result else None
+            
             c.execute("DELETE FROM joystick_mappings WHERE joystick_name = ?", (joystick_name,))
             conn.commit()
+            
+            # Publish to ROS2 topic
+            if action_name:
+                publish_to_ros2_topic('/mecanumbot/joystick_mapping', {
+                    'joystick': joystick_name,
+                    'action': action_name,
+                    'operation': 'delete'
+                })
+            
             return True
     except Exception as e:
         print(f"Error deleting joystick mapping: {e}")
         return False
 
-def get_controller_image():
-    """Get the appropriate controller image filename based on detected controller type"""
-    if "PS4" in CONTROLLER_TYPE or "DualShock 4" in CONTROLLER_TYPE or "ps4" in CONTROLLER_TYPE.lower():
-        return "ps4_controller.jpeg"
-    elif "Xbox 360" in CONTROLLER_TYPE or "xbox 360" in CONTROLLER_TYPE.lower():
-        return "xbox-controller.svg.png"
-    else:
-        return "xbox-controller.svg.png"  # Default fallback
+
 
 # -------- routes --------
 
 @app.get("/")
 def index():
     return render_template(
-        "index.html",
-        msg="",
-        controller_type=CONTROLLER_TYPE,
-        controller_detected=controller_detected
+        "landing.html",
+        msg=""
     )
 
 @app.post("/save")
 def save():
     # Save the user name with timestamp
     user_name = (request.form.get("user_name") or "").strip()
-    volunteer_name = (request.form.get("volunteer_name") or "").strip()
     
     if not user_name:
-        return render_template("index.html", 
-                                    msg="Please enter a user name.", 
-                                    controller_type=CONTROLLER_TYPE,
-                                    controller_detected=controller_detected)
+        return render_template("landing.html", 
+                                    msg="Please enter a user name.")
 
     # Save name and current time to CSV
     names_csv = os.path.join(BASE_DIR, "submissions.csv")
@@ -376,27 +459,36 @@ def save():
             w.writerow(["timestamp", "user_name"])
         w.writerow([datetime.utcnow().isoformat(), user_name])
 
-    # Redirect back to home
-    return redirect(url_for("index"))
+    # Redirect to dashboard
+    return redirect(url_for("dashboard", user_name=user_name))
 
-@app.get("/configure")
-def configure():
-    # Return the HTML template with the dynamic button list
-    return render_template(
-        "configure.html",
-        actions=[],
-        buttons=CONTROLLER_BUTTONS,
-        controller_type=CONTROLLER_TYPE
-    )
-
-@app.post("/redetect-controller")
-def redetect_controller():
-    """Re-detect the controller and redirect back to configure page"""
-    global CONTROLLER_BUTTONS, CONTROLLER_TYPE
-    print("Re-detecting controller...")
+@app.get("/dashboard")
+def dashboard():
+    user_name = request.args.get("user_name", "User")
     
-    detect_controller()
-    return redirect(url_for("configure"))
+    # Get all actions
+    all_actions = get_all_actions_from_db()
+    button_actions = get_all_actions_from_db(action_type=ACTION_TYPE_BUTTON)
+    joystick_actions = get_all_actions_from_db(action_type=ACTION_TYPE_JOYSTICK)
+    
+    # Get all mappings
+    button_mappings = get_all_button_mappings_from_db()
+    joystick_mappings = get_all_joystick_mappings_from_db()
+    
+    # Get controller connection status from ROS2
+    controller_status = get_controller_status()
+    
+    return render_template(
+        "dashboard.html",
+        user_name=user_name,
+        controller_type=CONTROLLER_TYPE,
+        controller_status=controller_status,
+        all_actions=all_actions,
+        button_actions=button_actions,
+        joystick_actions=joystick_actions,
+        button_mappings=button_mappings,
+        joystick_mappings=joystick_mappings
+    )
 
 @app.post("/map")
 def save_mapping():
@@ -457,22 +549,29 @@ def delete_button_mapping():
     
     return redirect(url_for("button_mapping"))
 
-@app.get("/map-buttons")
-def map_buttons():
-    """Show button to action mapping page"""
-    # Only get button-type actions (not joystick actions)
-    actions = get_all_actions_from_db(action_type=ACTION_TYPE_BUTTON)
+@app.get("/map-controls")
+def map_controls():
+    """Show unified control mapping page (buttons and joysticks)"""
+    # Get button-type actions
+    button_actions = get_all_actions_from_db(action_type=ACTION_TYPE_BUTTON)
     button_mappings = get_all_button_mappings_from_db()
     
+    # Get joystick-type actions
+    joystick_actions = get_all_actions_from_db(action_type=ACTION_TYPE_JOYSTICK)
+    joystick_mappings = get_all_joystick_mappings_from_db()
+    
     return render_template(
-        "map_buttons.html",
+        "map_controls.html",
         buttons=CONTROLLER_BUTTONS,
+        joysticks=CONTROLLER_JOYSTICKS,
         controller_type=CONTROLLER_TYPE,
-        actions=actions,
-        button_mappings=button_mappings
+        button_actions=button_actions,
+        button_mappings=button_mappings,
+        joystick_actions=joystick_actions,
+        joystick_mappings=joystick_mappings
     )
 
-@app.post("/map-buttons/save")
+@app.post("/map-controls/save-button")
 def save_button_action_mapping():
     """Save a button to action mapping"""
     button_name = request.form.get("button_name", "").strip()
@@ -480,28 +579,10 @@ def save_button_action_mapping():
     
     if button_name and action_name:
         save_button_mapping_to_db(button_name, action_name)
-        
-        # Publish updated mappings to ROS2
-        publish_button_action_mappings()
     
-    return redirect(url_for("map_buttons"))
+    return redirect(url_for("map_controls"))
 
-@app.get("/map-joysticks")
-def map_joysticks():
-    """Show joystick to action mapping page"""
-    # Only get joystick-type actions
-    actions = get_all_actions_from_db(action_type=ACTION_TYPE_JOYSTICK)
-    joystick_mappings = get_all_joystick_mappings_from_db()
-    
-    return render_template(
-        "map_joysticks.html",
-        joysticks=CONTROLLER_JOYSTICKS,
-        controller_type=CONTROLLER_TYPE,
-        actions=actions,
-        joystick_mappings=joystick_mappings
-    )
-
-@app.post("/map-joysticks/save")
+@app.post("/map-controls/save-joystick")
 def save_joystick_action_mapping():
     """Save a joystick to action mapping"""
     joystick_name = request.form.get("joystick_name", "").strip()
@@ -509,78 +590,28 @@ def save_joystick_action_mapping():
     
     if joystick_name and action_name:
         save_joystick_mapping_to_db(joystick_name, action_name)
-        
-        # Publish updated mappings to ROS2
-        publish_joystick_action_mappings()
     
-    return redirect(url_for("map_joysticks"))
+    return redirect(url_for("map_controls"))
 
-@app.post("/map-joysticks/delete")
+@app.post("/map-controls/delete-joystick")
 def delete_joystick_action_mapping():
     """Delete a joystick to action mapping"""
     joystick_name = request.form.get("joystick_name", "").strip()
     
     if joystick_name:
         delete_joystick_mapping_from_db(joystick_name)
-        
-        # Publish updated mappings to ROS2
-        publish_joystick_action_mappings()
     
-    return redirect(url_for("map_joysticks"))
+    return redirect(url_for("map_controls"))
 
-def publish_joystick_action_mappings():
-    """Publish all joystick->action mappings to ROS2"""
-    # Get all joystick mappings
-    joystick_mappings = get_all_joystick_mappings_from_db()
-    actions = get_all_actions_from_db()
-    
-    # Build complete mapping data for ROS2
-    ros2_data = {}
-    for joystick_name, action_name in joystick_mappings.items():
-        if action_name in actions:
-            ros2_data[joystick_name] = {
-                "action_name": action_name,
-                "tuples": actions[action_name]["tuples"]
-            }
-    
-    print(f"Joystick mappings ready to publish: {len(ros2_data)} joysticks")
-    # Note: ROS2 publishing handled by external ROS2 nodes
-    return ros2_data
-
-@app.post("/map-buttons/delete")
+@app.post("/map-controls/delete-button")
 def delete_button_action_mapping():
     """Delete a button to action mapping"""
     button_name = request.form.get("button_name", "").strip()
     
     if button_name:
         delete_button_mapping_from_db(button_name)
-        
-        # Publish updated mappings to ROS2
-        publish_button_action_mappings()
     
-    return redirect(url_for("map_buttons"))
-
-def publish_button_action_mappings():
-    """Publish all button->action mappings to ROS2"""
-    # Get all button mappings
-    button_mappings = get_all_button_mappings_from_db()
-    actions = get_all_actions_from_db()
-    
-    # Build complete mapping data for ROS2
-    ros2_data = {}
-    for button_name, action_name in button_mappings.items():
-        if action_name in actions:
-            ros2_data[button_name] = {
-                "action_name": action_name,
-                "tuples": actions[action_name]["tuples"]
-            }
-    
-    print(f"Button mappings ready to publish: {len(ros2_data)} buttons")
-    # Note: ROS2 publishing handled by external ROS2 nodes
-    #kell egy topic
-    return ros2_data
-
-# Button and joystick mappings are stored in database and accessed by ROS2 nodes directly
+    return redirect(url_for("map_controls"))
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)

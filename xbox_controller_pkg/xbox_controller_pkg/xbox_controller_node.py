@@ -9,8 +9,6 @@ Requirements:
 - ros-humble-joy package
 - Xbox 360 controller connected via wireless adapter
 
-Author: Generated for mecanumbot project
-Date: November 9, 2025
 """
 
 import rclpy
@@ -18,6 +16,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 import json
+import os
 
 
 class Xbox360ControllerNode(Node):
@@ -81,20 +80,25 @@ class Xbox360ControllerNode(Node):
             10
         )
         
-        # Create publisher for controller state
-        self.state_publisher = self.create_publisher(
+        # Create publisher for connection status
+        self.connection_publisher = self.create_publisher(
             String,
-            '/xbox_controller/state',
+            '/xbox_controller/connection_status',
             10
         )
-        
-        # Timer for publishing current state periodically
-        self.state_timer = self.create_timer(0.1, self.publish_state)  # 10Hz
         
         # Timer for publishing joystick positions periodically
         self.joystick_timer = self.create_timer(0.1, self.publish_joystick_positions)  # 10Hz
         
+        # Timer for publishing connection status periodically
+        self.connection_timer = self.create_timer(2.0, self.publish_connection_status)  # Every 2 seconds
+        
         self.current_joy_msg = None
+        self.controller_connected = False
+        self.last_joy_time = self.get_clock().now()
+        
+        # Path for status file (shared with Docker)
+        self.status_file = os.path.expanduser("~/Documents/controller_status.json")
         
         self.get_logger().info('Xbox 360 Controller Node initialized')
         self.get_logger().info('Waiting for controller input on /joy topic...')
@@ -108,6 +112,12 @@ class Xbox360ControllerNode(Node):
             msg (Joy): Joy message containing button and axis states
         """
         self.current_joy_msg = msg
+        self.last_joy_time = self.get_clock().now()
+        
+        # Mark controller as connected if we receive data
+        if not self.controller_connected:
+            self.controller_connected = True
+            self.get_logger().info('Controller connected!')
         
         # Process button events (detect button presses)
         for i, button_state in enumerate(msg.buttons):
@@ -174,39 +184,51 @@ class Xbox360ControllerNode(Node):
             'value': round(value, 3),
             'timestamp': self.get_clock().now().to_msg()._sec
         }
-        
+
+        self.get_logger().info(f'Axis CHANGED: {axis_name} (ID: {axis_id})')
+
         msg = String()
         msg.data = json.dumps(event_data)
-        self.button_publisher.publish(msg)
 
-    def publish_state(self):
+        self.joystick_publisher.publish(msg)
+    def publish_connection_status(self):
         """
-        Publish the current complete controller state periodically.
+        Publish controller connection status.
+        Checks if we've received joy messages recently (within 3 seconds).
+        Also writes status to a file for Docker app to read.
         """
-        if self.current_joy_msg is None:
-            return
-            
-        state_data = {
-            'type': 'STATE',
-            'buttons': {},
-            'axes': {},
-            'timestamp': self.get_clock().now().to_msg()._sec
+        current_time = self.get_clock().now()
+        time_since_last_msg = (current_time - self.last_joy_time).nanoseconds / 1e9
+        
+        # Consider disconnected if no message in 3 seconds
+        was_connected = self.controller_connected
+        self.controller_connected = time_since_last_msg < 3.0
+        
+        # Log status changes
+        if was_connected and not self.controller_connected:
+            self.get_logger().warn('Controller disconnected!')
+        elif not was_connected and self.controller_connected:
+            self.get_logger().info('Controller reconnected!')
+        
+        status_data = {
+            'connected': self.controller_connected,
+            'controller_type': 'Xbox 360',
+            'time_since_last_input': round(time_since_last_msg, 2),
+            'timestamp': current_time.to_msg()._sec
         }
         
-        # Add button states
-        for i, button_state in enumerate(self.current_joy_msg.buttons):
-            button_name = self.button_names.get(i, f'BUTTON_{i}')
-            state_data['buttons'][button_name] = bool(button_state)
-        
-        # Add axis states
-        for i, axis_value in enumerate(self.current_joy_msg.axes):
-            axis_name = self.axis_names.get(i, f'AXIS_{i}')
-            state_data['axes'][axis_name] = round(axis_value, 3)
-        
+        # Publish to ROS2 topic
         msg = String()
-        msg.data = json.dumps(state_data)
-        self.state_publisher.publish(msg)
-
+        msg.data = json.dumps(status_data)
+        self.connection_publisher.publish(msg)
+        
+        # Write to file for Docker app
+        try:
+            with open(self.status_file, 'w') as f:
+                json.dump(status_data, f)
+        except Exception as e:
+            self.get_logger().error(f'Failed to write status file: {e}')
+    
     def publish_joystick_positions(self):
         """
         Publish joystick positions as continuous events for joystick actions.
@@ -220,13 +242,10 @@ class Xbox360ControllerNode(Node):
         if len(axes) < 5:
             return
         
-        # Left Stick (axes 0 and 1)
-        left_x = round(axes[0], 3) if len(axes) > 0 else 0.0
-        left_y = round(axes[1], 3) if len(axes) > 1 else 0.0
-        
-        # Right Stick (axes 3 and 4)
-        right_x = round(axes[3], 3) if len(axes) > 3 else 0.0
-        right_y = round(axes[4], 3) if len(axes) > 4 else 0.0
+        left_x = round(axes[0], 3)
+        left_y = round(axes[1], 3)
+        right_x = round(axes[3], 3)
+        right_y = round(axes[4], 3)
         
         # Publish Left Stick event if not centered (deadzone 0.05)
         if abs(left_x) > 0.05 or abs(left_y) > 0.05:
