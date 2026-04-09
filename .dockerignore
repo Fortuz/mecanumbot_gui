@@ -1,0 +1,16 @@
+# Only host/ and shared/ are needed by the Dockerfile.
+# Everything else is excluded from the Docker build context.
+
+robot/
+build/
+install/
+log/
+.git/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+*.log
+README.md
+.gitignore
+.dockerignore

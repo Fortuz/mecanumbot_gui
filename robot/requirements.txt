@@ -1,0 +1,9 @@
+# No pip dependencies.
+#
+# All robot-side packages are either:
+#   - ROS2 packages installed via apt (rclpy, std_msgs, sensor_msgs,
+#     geometry_msgs, mecanumbot_msgs, joy)
+#   - Python standard library (json, os, sqlite3)
+#
+# To install ROS2 dependencies on the robot run:
+#   sudo apt install ros-humble-joy

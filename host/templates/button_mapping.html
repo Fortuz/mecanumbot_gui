@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Actions - MecanumBot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f3f4f6;
+            min-height: 100vh;
+            color: #1f2937;
+        }
+        
+        .ribbon {
+            background: #2563eb;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ribbon-title { color: white; font-size: 16px; font-weight: 600; }
+        
+        .user-section { display: flex; align-items: center; gap: 12px; }
+        
+        .user-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .back-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.15s;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .back-btn:hover { background: rgba(255, 255, 255, 0.25); }
+        
+        .toolbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 8px 16px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .toolbar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .main-content { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .page-header {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-header h1 { font-size: 20px; color: #1f2937; margin-bottom: 8px; }
+        .page-header p { font-size: 13px; color: #6b7280; }
+        
+        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            font-size: 16px;
+            color: #1f2937;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .form-group { margin-bottom: 16px; }
+        
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            transition: border-color 0.15s;
+        }
+        
+        input[type="number"] {
+            padding: 6px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: border-color 0.15s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        textarea { resize: vertical; min-height: 120px; font-family: 'Consolas', monospace; }
+        
+        .help-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+            line-height: 1.6;
+        }
+        
+        .help-text code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            color: #1f2937;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .btn-primary:hover { background: #1e40af; }
+        
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        
+        .btn-secondary:hover { background: #e5e7eb; }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover { background: #dc2626; }
+
+        /* ── Topic row card ── */
+        .topic-row {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 14px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .topic-row-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .topic-row-header select { flex: 1; font-size: 13px; }
+        .topic-row-remove {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .topic-row-remove:hover { background: #fecaca; }
+
+        .field-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .field-cell label {
+            font-size: 11px;
+            font-weight: 500;
+            color: #4b5563;
+            margin-bottom: 3px;
+            display: block;
+        }
+        .field-cell input {
+            width: 100%;
+            font-size: 12px;
+            padding: 5px 8px;
+        }
+        .field-cell input.joy-placeholder {
+            border-color: #6d28d9;
+            background: #f5f3ff;
+            color: #4c1d95;
+            font-weight: 600;
+        }
+        .scale-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .scale-row input { width: 70px; }
+        .scale-row label { margin-bottom: 0; font-size: 12px; }
+
+        .msg-preview {
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            color: #374151;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin-top: 6px;
+            word-break: break-all;
+        }
+        
+        .action-list { max-height: 600px; overflow-y: auto; }
+        
+        .action-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .action-name {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+        }
+        
+        .action-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .action-badge.button_once { background: #dbeafe; color: #1e40af; }
+        .action-badge.button_hold { background: #dcfce7; color: #166534; }
+        .action-badge.joystick { background: #fef3c7; color: #92400e; }
+
+        .sync-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 6px;
+            border: 1px solid;
+        }
+        .sync-badge.sync-ok       { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .sync-badge.sync-conflict { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+        .sync-badge.sync-unknown  { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+
+        .action-details {
+            font-size: 12px;
+            color: #6b7280;
+            font-family: 'Consolas', monospace;
+            margin: 8px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 3px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid;
+        }
+        
+        .status-badge.connected {
+            background: #ecfdf5;
+            border-color: #10b981;
+            color: #065f46;
+        }
+        
+        .status-badge.disconnected {
+            background: #fef2f2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+        
+        .status-badge.unknown {
+            background: #fffbeb;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+        
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        
+        .status-dot.connected { background: #10b981; }
+        .status-dot.disconnected { background: #ef4444; }
+        .status-dot.unknown { background: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="ribbon">
+        <span class="ribbon-title">🤖 MecanumBot - Create Actions</span>
+        <div class="user-section">
+            <div class="user-badge">👤 {{ user_name }}</div>
+            <a href="/main-dashboard?user_name={{ user_name }}" class="back-btn">← Back to Dashboard</a>
+        </div>
+    </div>
+    
+    <div class="toolbar">
+        <span class="toolbar-title">📝 Action Configuration</span>
+    </div>
+    
+    <div class="main-content">
+        <div class="page-header">
+            <h1>Create Custom Actions</h1>
+            <p>Define actions with ROS2 topic-message pairs that can be assigned to controller buttons</p>
+        </div>
+        
+        <div class="content-grid">
+            <div class="card">
+                <h2>New Action</h2>
+                {% if error %}
+                <div style="background:#fee2e2;border:1px solid #f87171;color:#b91c1c;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:14px;">
+                    <strong>Action rejected by robot:</strong> {{ error }}
+                </div>
+                {% endif %}
+                {% if robot_warning %}
+                <div style="background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:14px;">
+                    <strong>⚠ Saved locally, robot unreachable:</strong> {{ robot_warning }}
+                    It will be sent to the robot on the next sync.
+                </div>
+                {% endif %}
+                <form method="POST" action="/button-mapping/create" id="action-form">
+                    <input type="hidden" name="user_name" value="{{ user_name }}">
+
+                    <!-- hidden textarea: assembled by JS on submit -->
+                    <textarea id="tuple_list" name="tuple_list" style="display:none;"></textarea>
+
+                    <div class="form-group">
+                        <label for="mapping_name">Action Name</label>
+                        <input type="text" id="mapping_name" name="mapping_name" required placeholder="e.g. drive_forward">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="action_type">Action Type</label>
+                        <select id="action_type" name="action_type" onchange="onActionTypeChange()">
+                            <option value="button_once">Button — Press Once</option>
+                            <option value="button_hold">Button — Hold</option>
+                            <option value="joystick">Joystick / Trigger</option>
+                        </select>
+                        <div class="help-text" id="action-type-hint" style="margin-top:5px;padding:8px 10px;border-radius:5px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;">
+                            Fixed message(s) sent each time the button is pressed.
+                        </div>
+                    </div>
+
+                    <!-- ── Topic rows ── -->
+                    <div class="form-group" id="topic-rows-group">
+                        <label>Topics / Services to Publish</label>
+                        <div id="topic-rows"></div>
+                        <div style="display:flex;gap:8px;margin-top:6px;">
+                            <button type="button" onclick="addTopicRow()" class="btn"
+                                    style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;font-size:12px;padding:6px 14px;">
+                                ＋ Add Topic
+                            </button>
+                            <button type="button" onclick="addServiceRow()" class="btn"
+                                    style="background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff;font-size:12px;padding:6px 14px;">
+                                ＋ Add Service
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary" onclick="return buildTupleList(event)">
+                            Create Action
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="card">
+                <h2>Existing Actions</h2>
+                <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">Actions saved on <strong>this device</strong> (host database).</p>
+                <div class="action-list">
+                    {% if mappings %}
+                        {% for action_name, mapping_data in mappings.items() %}
+                        <div class="action-item" data-action-name="{{ action_name }}">
+                            <div class="action-header">
+                                <div>
+                                    <span class="action-name">{{ action_name }}</span>
+                                    <span class="action-badge {{ mapping_data.type }}">
+                                        {% if mapping_data.type == 'button_once' %}
+                                            Button (Once)
+                                        {% elif mapping_data.type == 'button_hold' %}
+                                            Button (Hold)
+                                        {% elif mapping_data.type == 'joystick' %}
+                                            Joystick
+                                        {% else %}
+                                            {{ mapping_data.type }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <form method="POST" action="/button-mapping/delete" style="display: inline;">
+                                    <input type="hidden" name="user_name" value="{{ user_name }}">
+                                    <input type="hidden" name="action_name" value="{{ action_name }}">
+                                    <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this action?')">Delete</button>
+                                </form>
+                            </div>
+                            <div class="action-details">
+                                {% for tuple in mapping_data.tuples %}
+                                    <div style="margin-bottom: 8px;">
+                                        {% if tuple|length >= 8 and tuple[7] == 'service' %}
+                                            <strong style="color:#7e22ce;">⚙ Service: {{ tuple[8] if tuple|length >= 9 else 'set_led_status' }}</strong>
+                                        {% else %}
+                                            <strong>{{ tuple[0] }}</strong>
+                                            {% if tuple|length >= 3 %}<span style="color: #6366f1;"> ({{ tuple[2] }})</span>{% endif %}
+                                            {% if mapping_data.type == 'joystick' and tuple|length >= 7 %}
+                                                <span style="color:#059669;font-size:11px;margin-left:6px;">offset X={{ tuple[5] }}, Y={{ tuple[6] }}</span>
+                                            {% elif mapping_data.type == 'joystick' and tuple|length >= 5 %}
+                                                <span style="color:#059669;font-size:11px;margin-left:6px;">offset X=0.0, Y=0.0</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        <br>
+                                        <span style="color: #6b7280; font-size: 0.9em;">{{ tuple[1] }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div style="text-align: center; padding: 40px 0; color: #9ca3af;">
+                            <p>No actions created yet</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if robot_actions %}
+                <div id="robot-actions-section">
+                <h2 style="margin-top:28px;">Robot's Own Actions</h2>
+                <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+                    Actions defined in the <strong>robot's database</strong>.
+                    These names are reserved — you cannot create a host action with the same name.
+                </p>
+                <div class="action-list">
+                    {% for action_name, action_data in robot_actions.items() %}
+                    <div class="action-item" style="border-left:3px solid #f59e0b;background:#fffbeb;">
+                        <div class="action-header">
+                            <div>
+                                <span class="action-name">{{ action_name }}</span>
+                                <span class="action-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">
+                                    {% if action_data.type == 'button_once' %}Button (Once)
+                                    {% elif action_data.type == 'button_hold' %}Button (Hold)
+                                    {% elif action_data.type == 'joystick' %}Joystick
+                                    {% else %}{{ action_data.type }}{% endif %}
+                                </span>
+                                <span style="font-size:11px;color:#92400e;margin-left:6px;">🤖 Robot-only</span>
+                            </div>
+                        </div>
+                        <div class="action-details">
+                            {% for tuple in action_data.tuples %}
+                                {% if tuple|length == 3 %}
+                                    <div style="margin-bottom:8px;">
+                                        <strong>{{ tuple[0] }}</strong> <span style="color:#6366f1;">({{ tuple[2] }})</span><br>
+                                        <span style="color:#6b7280;font-size:0.9em;">{{ tuple[1] }}</span>
+                                    </div>
+                                {% else %}
+                                    {{ tuple[0] }}: {{ tuple[1] }}<br>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                </div><!-- #robot-actions-section -->
+                {% elif robot_actions is defined %}
+                <div id="robot-actions-section">
+                <div style="margin-top:20px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;color:#6b7280;">
+                    🤖 No robot-side actions found — either the robot is offline or it has no actions in its database.
+                </div>
+                </div><!-- #robot-actions-section -->
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ── Data from server ──────────────────────────────────────────────────
+        const SCHEMAS = {{ topic_schemas | tojson }};
+
+        // Ordered list of known topics shown in dropdown
+        const KNOWN_TOPICS = Object.keys(SCHEMAS);
+
+        // ── Action type hint texts ────────────────────────────────────────────
+        const ACTION_HINTS = {
+            button_once: { text: 'Fixed message(s) sent each time the button is pressed.', color: '#eff6ff', border: '#bfdbfe', fg: '#1e40af' },
+            button_hold: { text: 'Messages sent repeatedly while the button is held down.', color: '#f0fdf4', border: '#bbf7d0', fg: '#166534' },
+            joystick:    { text: 'Messages sent continuously as the joystick/trigger moves. Use <b>X</b> for horizontal axis (or trigger), <b>Y</b> for vertical axis. Triggers only use X (Y = 0).', color: '#faf5ff', border: '#e9d5ff', fg: '#6d28d9' },
+        };
+
+        function onActionTypeChange() {
+            const type  = document.getElementById('action_type').value;
+            const hint  = ACTION_HINTS[type] || ACTION_HINTS.button_once;
+            const el    = document.getElementById('action-type-hint');
+            el.innerHTML = hint.text;
+            el.style.background   = hint.color;
+            el.style.borderColor  = hint.border;
+            el.style.color        = hint.fg;
+
+            refreshAllRows();
+        }
+
+        // ── Row counter ───────────────────────────────────────────────────────
+        let rowSeq = 0;
+
+        // ── Add a new topic row ───────────────────────────────────────────────
+        function addTopicRow() {
+            const id    = 'tr-' + (rowSeq++);
+            const isJoy = document.getElementById('action_type').value === 'joystick';
+
+            const wrap = document.createElement('div');
+            wrap.className = 'topic-row';
+            wrap.id = id;
+
+            // Build topic dropdown options
+            let opts = '<option value="">— select topic —</option>';
+            for (const t of KNOWN_TOPICS) {
+                opts += `<option value="${escHtml(t)}">${escHtml(t)}  (${escHtml(SCHEMAS[t].msg_type)})</option>`;
+            }
+
+            wrap.innerHTML = `
+                <div class="topic-row-header">
+                    <select id="${id}-sel" onchange="onTopicSelect('${id}')">
+                        ${opts}
+                    </select>
+                    <button type="button" class="topic-row-remove" onclick="removeRow('${id}')">✕ Remove</button>
+                </div>
+                <div id="${id}-fields"></div>
+                <div class="msg-preview" id="${id}-preview" style="display:none;"></div>
+            `;
+            document.getElementById('topic-rows').appendChild(wrap);
+        }
+
+        // ── Available services ────────────────────────────────────────────────
+        const KNOWN_SERVICES = [
+            { value: 'set_led_status', label: 'Set LED Lights  (set_led_status)' },
+        ];
+
+        // ── Add a service row ─────────────────────────────────────────────────
+        function addServiceRow() {
+            const id  = 'sr-' + (rowSeq++);
+            const wrap = document.createElement('div');
+            wrap.className = 'topic-row';
+            wrap.id = id;
+            wrap.dataset.rowType = 'service';
+
+            // Build service dropdown options
+            const svcOpts = ['<option value="">— select service —</option>']
+                .concat(KNOWN_SERVICES.map(s =>
+                    `<option value="${escHtml(s.value)}">${escHtml(s.label)}</option>`))
+                .join('');
+
+            wrap.innerHTML = `
+                <div class="topic-row-header">
+                    <select id="${id}-svc-sel" onchange="onServiceSelect('${id}')" style="flex:1;font-size:13px;">
+                        ${svcOpts}
+                    </select>
+                    <button type="button" class="topic-row-remove" onclick="removeRow('${id}')">✕ Remove</button>
+                </div>
+                <div id="${id}-svc-body"></div>
+            `;
+            document.getElementById('topic-rows').appendChild(wrap);
+        }
+
+        // ── React to service dropdown change ──────────────────────────────────
+        function onServiceSelect(id) {
+            const sel  = document.getElementById(id + '-svc-sel');
+            const body = document.getElementById(id + '-svc-body');
+            if (!sel || !body) return;
+
+            const svcName = sel.value;
+            if (svcName === 'set_led_status') {
+                body.innerHTML = buildLedPickerHTML(id);
+            } else {
+                body.innerHTML = '';
+            }
+        }
+
+        // ── Build the LED corner picker HTML for a service row ────────────────
+        function buildLedPickerHTML(id) {
+            const LED_COLORS = [
+                {val:0,name:'⬛ Black'},{val:1,name:'⬜ White'},{val:2,name:'🟢 Green'},
+                {val:3,name:'🔴 Red'}, {val:4,name:'🔵 Blue'}, {val:5,name:'🩵 Cyan'},
+                {val:6,name:'🩷 Pink'},{val:7,name:'🟡 Yellow'}
+            ];
+            const LED_MODES = [
+                {val:1,name:'Wave Right'},{val:2,name:'Wave Left'},
+                {val:3,name:'Pulse'},    {val:4,name:'Solid'}
+            ];
+            const colorOpts = LED_COLORS.map(c => `<option value="${c.val}">${c.name}</option>`).join('');
+            const modeOpts  = LED_MODES.map(m => `<option value="${m.val}"${m.val===4?' selected':''}>${m.name}</option>`).join('');
+
+            function cornerRow(label, key) {
+                return `<tr>
+                    <td style="padding:4px 8px;font-weight:600;color:#374151;">${label}</td>
+                    <td style="padding:4px 8px;"><select id="${id}-color-${key}" style="padding:3px 6px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">${colorOpts}</select></td>
+                    <td style="padding:4px 8px;"><select id="${id}-mode-${key}"  style="padding:3px 6px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">${modeOpts}</select></td>
+                </tr>`;
+            }
+
+            return `<div style="margin-top:8px;padding:8px;border:1px solid #e9d5ff;border-radius:6px;background:#fdf4ff;">
+                    <table style="border-collapse:collapse;font-size:13px;width:100%;">
+                        <thead><tr>
+                            <th style="padding:4px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;border-bottom:1px solid #e9d5ff;">Corner</th>
+                            <th style="padding:4px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;border-bottom:1px solid #e9d5ff;">Color</th>
+                            <th style="padding:4px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;border-bottom:1px solid #e9d5ff;">Mode</th>
+                        </tr></thead>
+                        <tbody>
+                            ${cornerRow('Front-Left','FL')}
+                            ${cornerRow('Front-Right','FR')}
+                            ${cornerRow('Back-Left','BL')}
+                            ${cornerRow('Back-Right','BR')}
+                        </tbody>
+                    </table>
+                </div>`;
+        }
+
+        function removeRow(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // ── React to topic dropdown change ────────────────────────────────────
+        function onTopicSelect(id) {
+            renderFields(id);
+        }
+
+        // ── Render field inputs for the chosen topic ──────────────────────────
+        function renderFields(id) {
+            const sel    = document.getElementById(id + '-sel');
+            if (!sel) return;  // service rows have no selector
+            const isJoy  = document.getElementById('action_type').value === 'joystick';
+            const fieldsDiv = document.getElementById(id + '-fields');
+            if (!fieldsDiv) return;
+
+            let schema = null;
+            let topicKey = sel.value;
+
+            if (topicKey === '' || topicKey === null) {
+                fieldsDiv.innerHTML = '<div style="font-size:12px;color:#9ca3af;padding:6px 0;">Select a topic above to see its fields.</div>';
+                document.getElementById(id + '-preview').style.display = 'none';
+                return;
+            }
+
+            schema = SCHEMAS[topicKey];
+            if (!schema) {
+                fieldsDiv.innerHTML = '<div style="font-size:12px;color:#9ca3af;padding:6px 0;">No schema for this topic.</div>';
+                return;
+            }
+
+            // Build field grid
+            let html = '<div class="field-grid">';
+            for (const f of schema.fields) {
+                const fid      = `${id}-f-${f.name.replace(/\./g,'_')}`;
+                const isRO     = f.readonly === true;
+                const isJoyF   = isJoy && f.joystick_role && !isRO;
+                const defVal   = isJoyF ? (f.joystick_role === 'Y' ? 'Y' : 'X') : (f.default || '0');
+                const badge    = isJoyF
+                    ? `<span style="font-size:10px;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:3px;margin-left:4px;">axis ${f.joystick_role}</span>`
+                    : isRO
+                        ? `<span style="font-size:10px;background:#f3f4f6;color:#9ca3af;padding:1px 5px;border-radius:3px;margin-left:4px;">fixed</span>`
+                        : '';
+                const roStyle  = isRO ? 'background:#f9fafb;color:#9ca3af;cursor:not-allowed;' : '';
+                html += `
+                    <div class="field-cell">
+                        <label for="${fid}">${escHtml(f.label)}${badge}</label>
+                        <input type="text" id="${fid}"
+                               value="${escHtml(defVal)}"
+                               placeholder="${escHtml(f.placeholder || f.default || '0')}"
+                               ${isJoyF ? 'class="joy-placeholder"' : ''}
+                               ${isRO ? 'readonly' : ''}
+                               style="${roStyle}"
+                               oninput="${isRO ? '' : `validateInput(this, '${id}'); updatePreview('${id}')`}">
+                    </div>`;
+            }
+            html += '</div>';
+
+            // Offset inputs for joystick only
+            if (isJoy) {
+                html += `
+                    <div class="scale-row">
+                        <label>Offset X:</label>
+                        <input type="number" id="${id}-ox" value="0.0" step="0.1" min="-100" max="100"
+                               style="width:70px;" oninput="updatePreview('${id}')">
+                        <label style="margin-left:8px;">Offset Y:</label>
+                        <input type="number" id="${id}-oy" value="0.0" step="0.1" min="-100" max="100"
+                               style="width:70px;" oninput="updatePreview('${id}')">
+                        <span style="font-size:11px;color:#9ca3af;margin-left:8px;">added to ±1.0 axis value</span>
+                    </div>`;
+            }
+
+            fieldsDiv.innerHTML = html;
+            updatePreview(id);
+        }
+
+        // ── Refresh all existing rows (e.g. after action type change) ─────────
+        function refreshAllRows() {
+            const rows = document.getElementById('topic-rows').querySelectorAll('.topic-row');
+            for (const row of rows) {
+                if (row.dataset.rowType === 'service') continue;  // service rows have no fields to refresh
+                renderFields(row.id);
+                // Re-validate any inputs that were already filled before the type change
+                row.querySelectorAll('input[type="text"]:not([readonly])').forEach(el => {
+                    if (el.value.trim()) validateInput(el, row.id);
+                });
+            }
+        }
+
+        // ── Build message JSON preview for a row ──────────────────────────────
+        function buildMsgJson(id) {
+            const sel    = document.getElementById(id + '-sel');
+            if (!sel) return '';
+            const topicKey = sel.value;
+
+            if (!topicKey || topicKey === '') return '';
+
+            const schema = SCHEMAS[topicKey];
+            if (!schema) return '';
+
+            // Collect field values
+            const values = {};
+            for (const f of schema.fields) {
+                const fid = `${id}-f-${f.name.replace(/\./g,'_')}`;
+                const el  = document.getElementById(fid);
+                values[f.name] = el ? el.value.trim() : (f.default || '0');
+            }
+
+            // Build nested object from dot-notation keys
+            const obj = {};
+            for (const [dotKey, val] of Object.entries(values)) {
+                setNestedValue(obj, dotKey.split('.'), val);
+            }
+            return JSON.stringify(obj);
+        }
+
+        function setNestedValue(obj, parts, val) {
+            const key = parts[0];
+            if (parts.length === 1) {
+                // Try numeric; keep as-is string for X/Y placeholders
+                const num = parseFloat(val);
+                obj[key] = (val === 'X' || val === 'Y' || isNaN(num)) ? val : num;
+            } else {
+                if (!obj[key] || typeof obj[key] !== 'object') obj[key] = {};
+                setNestedValue(obj[key], parts.slice(1), val);
+            }
+        }
+
+        function updatePreview(id) {
+            const previewEl = document.getElementById(id + '-preview');
+            const msg = buildMsgJson(id);
+            if (msg) {
+                previewEl.style.display = '';
+                previewEl.textContent   = '→ ' + msg;
+            } else {
+                previewEl.style.display = 'none';
+            }
+        }
+
+        // ── Validate all field inputs before submit ───────────────────────────
+        // Returns an array of error strings (empty = valid).
+        function validateFields() {
+            const actionType = document.getElementById('action_type').value;
+            const isButton   = actionType === 'button_once' || actionType === 'button_hold';
+            const isJoy      = actionType === 'joystick';
+            const errors     = [];
+
+            const rows = document.getElementById('topic-rows').querySelectorAll('.topic-row');
+            for (const row of rows) {
+                const rowId    = row.id;
+                const sel      = document.getElementById(rowId + '-sel');
+                const topicKey = sel ? sel.value : '';
+                if (!topicKey || topicKey === '') continue;
+
+                const schema = SCHEMAS[topicKey];
+                if (!schema) continue;
+
+                for (const f of schema.fields) {
+                    if (f.readonly === true) continue;   // fixed fields are always safe
+
+                    const fid = `${rowId}-f-${f.name.replace(/\./g,'_')}`;
+                    const el  = document.getElementById(fid);
+                    if (!el) continue;
+
+                    const val = el.value.trim();
+
+                    // Check if the value contains any letter character
+                    const hasLetter   = /[a-zA-Z]/.test(val);
+                    if (!hasLetter) continue;   // purely numeric — always fine
+
+                    if (isButton) {
+                        // Button actions: no letters whatsoever
+                        errors.push(
+                            `Field "${f.label.split('—')[0].trim()}" has value "${val}" — ` +
+                            `letters are not allowed in Button actions. Enter a number (e.g. 0.5).`
+                        );
+                    } else if (isJoy) {
+                        // Joystick actions: only exactly "X" or "Y" are valid letters
+                        if (val !== 'X' && val !== 'Y') {
+                            errors.push(
+                                `Field "${f.label.split('—')[0].trim()}" has value "${val}" — ` +
+                                `only "X" (horizontal axis) or "Y" (vertical axis) are valid. ` +
+                                `For a trigger, use "X" only.`
+                            );
+                        }
+                    }
+                }
+            }
+            return errors;
+        }
+
+        // ── Live per-input validation (called on every keystroke) ─────────────
+        // Highlights the input red if the value would fail validation on submit.
+        function validateInput(inputEl, rowId) {
+            const actionType = document.getElementById('action_type').value;
+            const isButton   = actionType === 'button_once' || actionType === 'button_hold';
+            const isJoy      = actionType === 'joystick';
+            const val        = inputEl.value.trim();
+            const hasLetter  = /[a-zA-Z]/.test(val);
+
+            let invalid = false;
+            let hint    = '';
+
+            if (hasLetter) {
+                if (isButton) {
+                    invalid = true;
+                    hint    = 'Letters not allowed for Button actions — enter a number.';
+                } else if (isJoy && val !== 'X' && val !== 'Y') {
+                    invalid = true;
+                    hint    = 'Only "X" (horizontal) or "Y" (vertical) are valid. For a trigger use "X".';
+                }
+            }
+
+            // Update border colour
+            inputEl.style.borderColor = invalid ? '#ef4444' : '';
+            inputEl.style.background  = invalid ? '#fff1f2' : '';
+
+            // Show/hide inline hint just below the input
+            let hintEl = inputEl.parentElement.querySelector('.field-val-hint');
+            if (invalid) {
+                if (!hintEl) {
+                    hintEl = document.createElement('div');
+                    hintEl.className = 'field-val-hint';
+                    hintEl.style.cssText = 'font-size:11px;color:#ef4444;margin-top:2px;';
+                    inputEl.parentElement.appendChild(hintEl);
+                }
+                hintEl.textContent = hint;
+            } else if (hintEl) {
+                hintEl.remove();
+            }
+        }
+
+        // ── Assemble the tuple_list textarea on submit ─────────────────────────
+        // Format: "topic\tmessage_json\tros_type\tpublish_type\tservice_name\n..."
+        function buildTupleList(event) {
+            const actionType = document.getElementById('action_type').value;
+
+            // ── Validate topic-row field values before doing anything ─────────
+            const validationErrors = validateFields();
+            if (validationErrors.length > 0) {
+                alert('⚠ Cannot create action — please fix the following:\n\n• ' +
+                      validationErrors.join('\n• '));
+                event.preventDefault();
+                return false;
+            }
+
+            const rows  = document.getElementById('topic-rows').querySelectorAll('.topic-row');
+            const isJoy = actionType === 'joystick';
+            const lines = [];
+            let rowIdx  = 0;
+
+            for (const row of rows) {
+                const rowId = row.id;
+
+                // ── Service row ───────────────────────────────────────────────
+                if (row.dataset.rowType === 'service') {
+                    const svcSel  = document.getElementById(rowId + '-svc-sel');
+                    const svcName = svcSel ? svcSel.value : '';
+                    if (!svcName) continue;   // no service selected — skip row
+
+                    let msgJson = '';
+                    if (svcName === 'set_led_status') {
+                        const cfg = {};
+                        for (const corner of ['FL','FR','BL','BR']) {
+                            const colorEl = document.getElementById(`${rowId}-color-${corner}`);
+                            const modeEl  = document.getElementById(`${rowId}-mode-${corner}`);
+                            cfg[corner] = {
+                                color: colorEl ? (parseInt(colorEl.value) || 0) : 0,
+                                mode:  modeEl  ? (parseInt(modeEl.value)  || 4) : 4,
+                            };
+                        }
+                        msgJson = JSON.stringify(cfg);
+                    }
+                    if (!msgJson) continue;   // unknown service with no payload — skip
+                    // topic is empty for service rows; publish_type = 'service'
+                    injectHidden('offset_x_' + rowIdx, '0.0');
+                    injectHidden('offset_y_' + rowIdx, '0.0');
+                    lines.push(`\t${msgJson}\t\tservice\t${svcName}`);
+                    rowIdx++;
+                    continue;
+                }
+
+                // ── Topic row ─────────────────────────────────────────────────
+                const sel      = document.getElementById(rowId + '-sel');
+                const topicKey = sel ? sel.value : '';
+
+                if (!topicKey) continue;
+
+                let topic   = topicKey;
+                let msgType = '';
+
+                const schema = SCHEMAS[topicKey];
+                msgType = schema ? schema.msg_type : '';
+                if (schema && schema._topic_override) topic = schema._topic_override;
+
+                if (!topic) continue;
+
+                let msgJson = buildMsgJson(rowId);
+
+                // For button actions: replace any remaining X/Y with 0
+                if (!isJoy) {
+                    msgJson = msgJson.replace(/"X"/g, '0').replace(/"Y"/g, '0')
+                                     .replace(/:\s*X\b/g, ':0').replace(/:\s*Y\b/g, ':0');
+                }
+
+                if (!msgJson) continue;
+
+                const oxEl = document.getElementById(rowId + '-ox');
+                const oyEl = document.getElementById(rowId + '-oy');
+                injectHidden('offset_x_' + rowIdx, oxEl ? oxEl.value : '0.0');
+                injectHidden('offset_y_' + rowIdx, oyEl ? oyEl.value : '0.0');
+
+                lines.push(`${topic}\t${msgJson}\t${msgType}\ttopic\t`);
+                rowIdx++;
+            }
+
+            if (lines.length === 0) {
+                alert('Please add at least one topic or service row.');
+                event.preventDefault();
+                return false;
+            }
+
+            document.getElementById('tuple_list').value = lines.join('\n');
+            return true;
+        }
+
+        function injectHidden(name, value) {
+            let el = document.querySelector(`input[name="${name}"]`);
+            if (!el) {
+                el = document.createElement('input');
+                el.type = 'hidden';
+                el.name = name;
+                document.getElementById('action-form').appendChild(el);
+            }
+            el.value = value;
+        }
+
+        function escHtml(s) {
+            return String(s)
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/"/g,'&quot;');
+        }
+
+        // ── Controller status polling ─────────────────────────────────────────
+        (function poll() {
+            fetch('/api/controller-status')
+                .then(r => r.json())
+                .then(s => {
+                    const el = document.querySelector('.status-badge');
+                    if (!el) return;
+                    if (s.connected) {
+                        el.className = 'status-badge connected';
+                        el.innerHTML = `<span class="status-dot connected"></span><span>${s.controller_type || 'Xbox Controller'} Connected</span>`;
+                    } else {
+                        el.className = 'status-badge disconnected';
+                        el.innerHTML = '<span class="status-dot disconnected"></span><span>Controller Disconnected</span>';
+                    }
+                }).catch(() => {});
+            setTimeout(poll, 2000);
+        })();
+
+        // ── Add a first row automatically ─────────────────────────────────────
+        addTopicRow();
+
+        // ── Per-action sync status badges ─────────────────────────────────────
+        function refreshActionSyncStatus() {
+            fetch('/api/sync-status')
+                .then(r => r.json())
+                .then(data => {
+                    const items = document.querySelectorAll('.action-item[data-action-name]');
+                    items.forEach(item => {
+                        const old = item.querySelector('.sync-badge');
+                        if (old) old.remove();
+                    });
+
+                    const badge = (cls, text) => {
+                        const b = document.createElement('span');
+                        b.className = 'sync-badge ' + cls;
+                        b.textContent = text;
+                        return b;
+                    };
+
+                    if (!data || !data.attempted) {
+                        items.forEach(item => {
+                            item.querySelector('.action-name').after(badge('sync-unknown', '⊘ Not synced'));
+                        });
+                        return;
+                    }
+
+                    // If the sync was attempted but failed (e.g. robot offline), mark all as unsynced
+                    if (!data.success && data.accepted_count === 0) {
+                        items.forEach(item => {
+                            item.querySelector('.action-name').after(badge('sync-conflict', '⚠ Robot offline'));
+                        });
+                        return;
+                    }
+
+                    const conflictNames = new Set(
+                        (data.conflicts || []).map(c => c.name).filter(Boolean)
+                    );
+
+                    items.forEach(item => {
+                        const name = item.getAttribute('data-action-name');
+                        const b = conflictNames.has(name)
+                            ? badge('sync-conflict', '⚠ Conflict')
+                            : badge('sync-ok', '✓ Synced');
+                        item.querySelector('.action-name').after(b);
+                    });
+                })
+                .catch(() => {});
+        }
+        refreshActionSyncStatus();
+        setInterval(refreshActionSyncStatus, 10000);
+
+        // ── Robot-side actions live reload ────────────────────────────────────
+        function refreshRobotActions() {
+            fetch('/api/robot-actions')
+                .then(r => r.json())
+                .then(robotActions => {
+                    const container = document.getElementById('robot-actions-section');
+                    if (!container) return;
+                    const names = Object.keys(robotActions);
+                    if (names.length === 0) {
+                        container.innerHTML = '<div style="margin-top:20px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;color:#6b7280;">🤖 No robot-side actions found — either the robot is offline or it has no actions in its database.</div>';
+                        return;
+                    }
+                    let html = '<h2 style="margin-top:28px;">Robot\'s Own Actions</h2>';
+                    html += '<p style="font-size:12px;color:#6b7280;margin-bottom:12px;">Actions defined in the <strong>robot\'s database</strong>. These names are reserved — you cannot create a host action with the same name.</p>';
+                    html += '<div class="action-list">';
+                    for (const [actionName, actionData] of Object.entries(robotActions)) {
+                        const typeLabel = actionData.type === 'button_once' ? 'Button (Once)'
+                                        : actionData.type === 'button_hold' ? 'Button (Hold)'
+                                        : actionData.type === 'joystick'    ? 'Joystick'
+                                        : actionData.type;
+                        html += `<div class="action-item" style="border-left:3px solid #f59e0b;background:#fffbeb;">
+                            <div class="action-header"><div>
+                                <span class="action-name">${actionName}</span>
+                                <span class="action-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">${typeLabel}</span>
+                                <span style="font-size:11px;color:#92400e;margin-left:6px;">🤖 Robot-only</span>
+                            </div></div>
+                            <div class="action-details">`;
+                        for (const t of (actionData.tuples || [])) {
+                            html += `<div style="margin-bottom:8px;"><strong>${t[0]}</strong> <span style="color:#6366f1;">(${t[2] || ''})</span><br><span style="color:#6b7280;font-size:0.9em;">${t[1]}</span></div>`;
+                        }
+                        html += '</div></div>';
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                })
+                .catch(() => {});
+        }
+        refreshRobotActions();
+        setInterval(refreshRobotActions, 10000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MecanumBot Control Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f3f4f6;
+            min-height: 100vh;
+            color: #1f2937;
+        }
+        
+        .ribbon {
+            background: #2563eb;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ribbon-title {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .user-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.15s;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        .toolbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding-right: 12px;
+            margin-right: 12px;
+            border-right: 1px solid #e5e7eb;
+        }
+        
+        .toolbar-group:last-child {
+            border-right: none;
+            margin-left: auto;
+            margin-right: 0;
+        }
+        
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .dropdown-button {
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .dropdown-button:hover {
+            background: #f9fafb;
+            border-color: #2563eb;
+        }
+        
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background: white;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+            border: 1px solid #e5e7eb;
+            z-index: 1000;
+            margin-top: 2px;
+            overflow: hidden;
+        }
+        
+        .dropdown-content a {
+            color: #374151;
+            padding: 10px 16px;
+            text-decoration: none;
+            display: block;
+            transition: background 0.1s ease;
+            font-size: 13px;
+        }
+        
+        .dropdown-content a:hover {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+        
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        
+        .toolbar-button {
+            background: white;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+        }
+        
+        .toolbar-button:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        .toolbar-button.rec-idle {
+            color: #dc2626;
+        }
+
+        .toolbar-button.rec-idle:hover {
+            background: #fef2f2;
+            border-color: #dc2626;
+        }
+
+        .toolbar-button.rec-active {
+            color: #ffffff;
+            background: #dc2626;
+            border-color: #dc2626;
+            animation: recPulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes recPulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.75; }
+        }
+
+        /* Recording dropdown panel */
+        .rec-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .rec-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+            z-index: 2000;
+            min-width: 280px;
+            padding: 14px 16px 12px;
+        }
+
+        .rec-panel.open { display: block; }
+
+        .rec-panel h4 {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 10px;
+        }
+
+        .rec-topic-list {
+            max-height: 220px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+        }
+
+        .rec-topic-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: pointer;
+        }
+
+        .rec-topic-item:last-child { border-bottom: none; }
+
+        .rec-topic-item input[type=checkbox] {
+            margin-top: 2px;
+            flex-shrink: 0;
+            accent-color: #dc2626;
+        }
+
+        .rec-topic-label { font-size: 12px; color: #374151; }
+        .rec-topic-desc  { font-size: 11px; color: #9ca3af; }
+
+        .rec-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .rec-btn-start {
+            flex: 1;
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 7px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .rec-btn-start:hover { background: #b91c1c; }
+        .rec-btn-start:disabled { background: #fca5a5; cursor: not-allowed; }
+
+        .rec-btn-stop {
+            flex: 1;
+            background: #374151;
+            color: white;
+            border: none;
+            padding: 7px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .rec-btn-stop:hover { background: #1f2937; }
+        .rec-btn-stop:disabled { background: #d1d5db; cursor: not-allowed; }
+
+        .rec-status-line {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 8px;
+            text-align: center;
+            min-height: 16px;
+        }
+
+        .rec-status-line.active { color: #dc2626; font-weight: 600; }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid;
+        }
+        
+        .status-badge.connected {
+            background: #ecfdf5;
+            border-color: #10b981;
+            color: #065f46;
+        }
+        
+        .status-badge.disconnected {
+            background: #fef2f2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+        
+        .status-badge.unknown {
+            background: #fffbeb;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-dot.connected {
+            background: #10b981;
+        }
+        
+        .status-dot.disconnected {
+            background: #ef4444;
+        }
+        
+        .status-dot.unknown {
+            background: #f59e0b;
+        }
+        
+        .main-content {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .welcome-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .welcome-card h1 {
+            font-size: 24px;
+            color: #1f2937;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .welcome-card p {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        /* ── Robot State panel ── */
+        .robot-state-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+            margin-top: 16px;
+        }
+
+        .robot-state-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+
+        .robot-state-header h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .robot-state-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+        }
+
+        .robot-state-dot.live  { background: #10b981; }
+        .robot-state-dot.error { background: #ef4444; }
+
+        .robot-state-age {
+            font-size: 11px;
+            color: #9ca3af;
+        }
+
+        .robot-state-body {
+            padding: 12px 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .rs-group {
+            border: 1px solid #f3f4f6;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .rs-group-title {
+            background: #f3f4f6;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .rs-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 10px;
+            border-top: 1px solid #f3f4f6;
+            font-size: 12px;
+        }
+
+        .rs-label { color: #6b7280; }
+        .rs-value {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            color: #1f2937;
+            min-width: 70px;
+            text-align: right;
+        }
+
+        .rs-value.warn { color: #d97706; }
+        .rs-value.error { color: #dc2626; }
+
+        .robot-state-unavailable {
+            padding: 24px;
+            text-align: center;
+            font-size: 13px;
+            color: #9ca3af;
+        }
+
+        /* ── LED Status strip ─────────────────────────────────────────────── */
+        .led-status-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+            margin-top: 12px;
+        }
+
+        .led-status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fdf4ff;
+        }
+
+        .led-status-header h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .led-status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+        }
+        .led-status-dot.live  { background: #10b981; }
+        .led-status-dot.error { background: #ef4444; }
+
+        .led-status-body {
+            padding: 10px 16px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .led-corner-chip {
+            flex: 1 1 140px;
+            border: 1px solid #e9d5ff;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .led-corner-chip-title {
+            background: #f5f3ff;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #7e22ce;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .led-corner-chip-body {
+            padding: 5px 10px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .led-color-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,0.12);
+            flex-shrink: 0;
+        }
+
+        .led-status-unavailable {
+            padding: 14px 16px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+
+    </style>
+</head>
+<body data-user="{{ user_name }}">
+    <div class="ribbon">
+        <span class="ribbon-title">🤖 MecanumBot Control System</span>
+        <div class="user-section">
+            <div class="user-badge">👤 {{ user_name }}</div>
+            <a href="/" class="logout-btn">Change User</a>
+        </div>
+    </div>
+    
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <div class="dropdown">
+                <button class="dropdown-button">
+                    ⚙️ Controller
+                    <span style="font-size: 9px;">▼</span>
+                </button>
+                <div class="dropdown-content">
+                    <a href="/button-mapping?user_name={{ user_name }}">📝 Create Actions</a>
+                    <a href="/map-controls?user_name={{ user_name }}">🎮 Map Controls</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toolbar-group">
+            <div class="rec-dropdown" id="recDropdown">
+                <button class="toolbar-button rec-idle" id="recToggleBtn" onclick="toggleRecPanel(event)">
+                    ⏺️ Recording
+                </button>
+                <div class="rec-panel" id="recPanel">
+                    <h4>Select Topics to Record</h4>
+                    <div class="rec-topic-list" id="recTopicList">
+                        <em style="font-size:12px;color:#9ca3af;">Loading…</em>
+                    </div>
+                    <div class="rec-actions">
+                        <button class="rec-btn-start" id="recStartBtn" onclick="startRecording()">▶ Start</button>
+                        <button class="rec-btn-stop"  id="recStopBtn"  onclick="stopRecording()" disabled>■ Stop</button>
+                    </div>
+                    <div class="rec-status-line" id="recStatusLine"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toolbar-group">
+            <div class="status-badge unknown">
+                <span class="status-dot unknown"></span>
+                <span>Controller Status</span>
+            </div>
+        </div>
+
+        <div class="toolbar-group">
+            <div class="status-badge unknown" id="robot-status-badge">
+                <span class="status-dot unknown"></span>
+                <span>Robot Status</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="welcome-card">
+            <h1>Welcome to MecanumBot Control System</h1>
+            <p>Use the toolbar above to configure controller actions and mappings</p>
+        </div>
+
+        <!-- ── Robot State panel ── -->
+        <div class="robot-state-card">
+            <div class="robot-state-header">
+                <h3>
+                    <span class="robot-state-dot" id="rsDot"></span>
+                    Robot State  <span style="font-weight:400;color:#9ca3af;">(OpenCR)</span>
+                </h3>
+                <span class="robot-state-age" id="rsAge">—</span>
+            </div>
+            <div id="rsBody">
+                <div class="robot-state-unavailable">Waiting for /opencr_state …</div>
+            </div>
+        </div>
+
+        <!-- ── LED Status panel ── -->
+        <div class="led-status-card">
+            <div class="led-status-header">
+                <h3>
+                    <span class="led-status-dot" id="ledStatusDot"></span>
+                    💡 LED Status
+                </h3>
+                <span style="font-size:11px;color:#9ca3af;" id="ledStatusAge">—</span>
+            </div>
+            <div id="ledStatusBody">
+                <div class="led-status-unavailable">Waiting for LED state…</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const USER_NAME = document.body.dataset.user || 'User';
+
+        // ── Controller status polling ──────────────────────────────────────
+        (function() {
+            function updateControllerStatus() {
+                fetch('/api/controller-status')
+                    .then(r => r.json())
+                    .then(status => {
+                        const el = document.querySelector('.status-badge');
+                        if (!el) return;
+                        if (status.connected) {
+                            el.className = 'status-badge connected';
+                            el.innerHTML = `<span class="status-dot connected"></span><span>${status.controller_type || 'Xbox Controller'} Connected</span>`;
+                        } else {
+                            el.className = 'status-badge disconnected';
+                            el.innerHTML = '<span class="status-dot disconnected"></span><span>Controller Disconnected</span>';
+                        }
+                    })
+                    .catch(() => {
+                        const el = document.querySelector('.status-badge');
+                        if (el) {
+                            el.className = 'status-badge unknown';
+                            el.innerHTML = '<span class="status-dot unknown"></span><span>Status Unavailable</span>';
+                        }
+                    });
+            }
+            updateControllerStatus();
+            setInterval(updateControllerStatus, 2000);
+        })();
+
+        // ── Robot status polling ───────────────────────────────────────────
+        (function() {
+            function updateRobotStatus() {
+                fetch('/api/robot-status')
+                    .then(r => r.json())
+                    .then(data => {
+                        const el = document.getElementById('robot-status-badge');
+                        if (!el) return;
+                        if (data.available) {
+                            el.className = 'status-badge connected';
+                            el.innerHTML = '<span class="status-dot connected"></span><span>Robot Online</span>';
+                        } else {
+                            el.className = 'status-badge disconnected';
+                            el.innerHTML = '<span class="status-dot disconnected"></span><span>Robot Offline</span>';
+                        }
+                    })
+                    .catch(() => {
+                        const el = document.getElementById('robot-status-badge');
+                        if (el) {
+                            el.className = 'status-badge unknown';
+                            el.innerHTML = '<span class="status-dot unknown"></span><span>Robot Status</span>';
+                        }
+                    });
+            }
+            updateRobotStatus();
+            setInterval(updateRobotStatus, 3000);
+        })();
+
+        // ── Recording panel ───────────────────────────────────────────────
+
+        // Close panel when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('recDropdown');
+            if (dropdown && !dropdown.contains(e.target)) {
+                document.getElementById('recPanel').classList.remove('open');
+            }
+        });
+
+        function toggleRecPanel(e) {
+            e.stopPropagation();
+            document.getElementById('recPanel').classList.toggle('open');
+        }
+
+        // Load topic list once
+        fetch('/api/recording/topics')
+            .then(r => r.json())
+            .then(topics => {
+                const list = document.getElementById('recTopicList');
+                list.innerHTML = '';
+                topics.forEach(t => {
+                    const item = document.createElement('label');
+                    item.className = 'rec-topic-item';
+                    const isService = t.is_service === true;
+                    const labelHtml = isService
+                        ? `<div class="rec-topic-label">
+                               💡 LED State
+                               <span style="font-size:10px;background:#f5f3ff;color:#7e22ce;border:1px solid #e9d5ff;border-radius:3px;padding:1px 5px;margin-left:5px;font-weight:600;">service</span>
+                           </div>`
+                        : `<div class="rec-topic-label">${t.topic}</div>`;
+                    item.innerHTML = `
+                        <input type="checkbox" value="${t.topic}" checked>
+                        <span>
+                            ${labelHtml}
+                            <div class="rec-topic-desc">${t.description}</div>
+                        </span>`;
+                    list.appendChild(item);
+                });
+            })
+            .catch(() => {
+                document.getElementById('recTopicList').innerHTML =
+                    '<em style="font-size:12px;color:#ef4444;">Failed to load topics</em>';
+            });
+
+        function getCheckedTopics() {
+            return Array.from(
+                document.querySelectorAll('#recTopicList input[type=checkbox]:checked')
+            ).map(cb => cb.value);
+        }
+
+        function startRecording() {
+            const topics = getCheckedTopics();
+            if (topics.length === 0) {
+                setRecStatus('Select at least one topic.', false);
+                return;
+            }
+            document.getElementById('recStartBtn').disabled = true;
+            fetch('/api/recording/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_name: USER_NAME, topics: topics})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.started) {
+                    setRecordingActive(true);
+                    setRecStatus('● Recording: ' + (data.dir_name || ''), true);
+                } else {
+                    document.getElementById('recStartBtn').disabled = false;
+                    setRecStatus('Error: ' + (data.error || 'unknown'), false);
+                }
+            })
+            .catch(() => {
+                document.getElementById('recStartBtn').disabled = false;
+                setRecStatus('Network error', false);
+            });
+        }
+
+        function stopRecording() {
+            document.getElementById('recStopBtn').disabled = true;
+            fetch('/api/recording/stop', {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                setRecordingActive(false);
+                setRecStatus('Saved: ' + (data.dir_name || ''), false);
+            })
+            .catch(() => {
+                setRecordingActive(false);
+                setRecStatus('Stopped (network error)', false);
+            });
+        }
+
+        function setRecordingActive(active) {
+            const btn = document.getElementById('recToggleBtn');
+            const startBtn = document.getElementById('recStartBtn');
+            const stopBtn  = document.getElementById('recStopBtn');
+            if (active) {
+                btn.className = 'toolbar-button rec-active';
+                btn.textContent = '⏺️ Recording…';
+                startBtn.disabled = true;
+                stopBtn.disabled  = false;
+                // Disable topic checkboxes during recording
+                document.querySelectorAll('#recTopicList input[type=checkbox]')
+                    .forEach(cb => cb.disabled = true);
+            } else {
+                btn.className = 'toolbar-button rec-idle';
+                btn.textContent = '⏺️ Recording';
+                startBtn.disabled = false;
+                stopBtn.disabled  = true;
+                document.querySelectorAll('#recTopicList input[type=checkbox]')
+                    .forEach(cb => cb.disabled = false);
+            }
+        }
+
+        function setRecStatus(msg, active) {
+            const el = document.getElementById('recStatusLine');
+            el.textContent = msg;
+            el.className = 'rec-status-line' + (active ? ' active' : '');
+        }
+
+        // Sync UI with server state on page load
+        fetch('/api/recording/status')
+            .then(r => r.json())
+            .then(s => {
+                if (s.active) {
+                    setRecordingActive(true);
+                    const dname = s.dir ? s.dir.split('/').pop() : '';
+                    setRecStatus('● Recording: ' + dname, true);
+                }
+            });
+
+        // ── Robot State panel ─────────────────────────────────────────────
+        const TICK_TO_RAD = 0.005061;
+        const VEL_TICK_SCALE = (0.229 / 60) * 2 * Math.PI * 0.0325; // → m/s per tick
+
+        function rsVal(v, decimals=0, unit='') {
+            if (v == null) return '<span class="rs-value">—</span>';
+            const n = decimals > 0 ? Number(v).toFixed(decimals) : Math.round(v);
+            return `<span class="rs-value">${n}${unit}</span>`;
+        }
+
+        function rsBattery(v) {
+            const cls = v < 10.2 ? 'error' : v < 11.0 ? 'warn' : '';
+            return `<span class="rs-value ${cls}">${Number(v).toFixed(2)} V</span>`;
+        }
+
+        function buildRobotStateHTML(s) {
+            // Helper to build a group block
+            function group(title, rows) {
+                const rowsHTML = rows.map(([label, valHTML]) =>
+                    `<div class="rs-row"><span class="rs-label">${label}</span>${valHTML}</div>`
+                ).join('');
+                return `<div class="rs-group">
+                    <div class="rs-group-title">${title}</div>
+                    ${rowsHTML}
+                </div>`;
+            }
+
+            const velBL = (s.vel_bl * VEL_TICK_SCALE).toFixed(3);
+            const velBR = (s.vel_br * VEL_TICK_SCALE).toFixed(3);
+            const velFL = (s.vel_fl * VEL_TICK_SCALE).toFixed(3);
+            const velFR = (s.vel_fr * VEL_TICK_SCALE).toFixed(3);
+
+            return [
+                group('Wheel Velocity (m/s)', [
+                    ['Front-Left',  `<span class="rs-value">${velFL}</span>`],
+                    ['Front-Right', `<span class="rs-value">${velFR}</span>`],
+                    ['Back-Left',   `<span class="rs-value">${velBL}</span>`],
+                    ['Back-Right',  `<span class="rs-value">${velBR}</span>`],
+                ]),
+                group('Wheel Position (ticks)', [
+                    ['Front-Left',  rsVal(s.pos_fl)],
+                    ['Front-Right', rsVal(s.pos_fr)],
+                    ['Back-Left',   rsVal(s.pos_bl)],
+                    ['Back-Right',  rsVal(s.pos_br)],
+                ]),
+                group('Motor Current (raw)', [
+                    ['Front-Left',  rsVal(s.curr_fl)],
+                    ['Front-Right', rsVal(s.curr_fr)],
+                    ['Back-Left',   rsVal(s.curr_bl)],
+                    ['Back-Right',  rsVal(s.curr_br)],
+                ]),
+                group('Servos (ticks)', [
+                    ['Head (neck)',     rsVal(s.pos_n)],
+                    ['Grabber Left',   rsVal(s.pos_gl)],
+                    ['Grabber Right',  rsVal(s.pos_gr)],
+                ]),
+                group('Battery', [
+                    ['Voltage', rsBattery(s.battery_voltage)],
+                ]),
+                group('IMU Angular Vel (rad/s)', [
+                    ['X', rsVal(s.imu_angular_vel_x, 3)],
+                    ['Y', rsVal(s.imu_angular_vel_y, 3)],
+                    ['Z', rsVal(s.imu_angular_vel_z, 3)],
+                ]),
+                group('IMU Linear Acc (m/s²)', [
+                    ['X', rsVal(s.imu_linear_acc_x, 3)],
+                    ['Y', rsVal(s.imu_linear_acc_y, 3)],
+                    ['Z', rsVal(s.imu_linear_acc_z, 3)],
+                ]),
+                group('IMU Orientation (quat)', [
+                    ['W', rsVal(s.imu_orientation_w, 4)],
+                    ['X', rsVal(s.imu_orientation_x, 4)],
+                    ['Y', rsVal(s.imu_orientation_y, 4)],
+                    ['Z', rsVal(s.imu_orientation_z, 4)],
+                ]),
+            ].join('');
+        }
+
+        let _rsLastOk = false;
+        function updateRobotState() {
+            fetch('/api/opencr-state')
+                .then(r => r.json())
+                .then(data => {
+                    const dot  = document.getElementById('rsDot');
+                    const age  = document.getElementById('rsAge');
+                    const body = document.getElementById('rsBody');
+                    if (!data.available) {
+                        dot.className = 'robot-state-dot error';
+                        age.textContent = 'No data';
+                        if (_rsLastOk) {
+                            body.className = '';
+                            body.innerHTML = '<div class="robot-state-unavailable">Waiting for /opencr_state …</div>';
+                            _rsLastOk = false;
+                        }
+                        return;
+                    }
+                    dot.className = 'robot-state-dot live';
+                    age.textContent = new Date().toLocaleTimeString();
+                    body.className = 'robot-state-body';
+                    body.innerHTML = buildRobotStateHTML(data);
+                    _rsLastOk = true;
+                })
+                .catch(() => {
+                    document.getElementById('rsDot').className = 'robot-state-dot error';
+                });
+        }
+
+        updateRobotState();
+        setInterval(updateRobotState, 250);   // 4 Hz refresh
+
+        // ── LED Status panel ──────────────────────────────────────────────────
+        const LED_CORNERS_ORDERED = ['FL', 'FR', 'BL', 'BR'];
+        const LED_CORNER_LABEL = { FL: 'Front-Left', FR: 'Front-Right', BL: 'Back-Left', BR: 'Back-Right' };
+        const LED_COLOR_INFO = [
+            { name: 'BLACK',  hex: '#1a1a1a' },
+            { name: 'WHITE',  hex: '#f0f0f0' },
+            { name: 'GREEN',  hex: '#22c55e' },
+            { name: 'RED',    hex: '#ef4444' },
+            { name: 'BLUE',   hex: '#3b82f6' },
+            { name: 'CYAN',   hex: '#06b6d4' },
+            { name: 'PINK',   hex: '#ec4899' },
+            { name: 'YELLOW', hex: '#eab308' },
+        ];
+        const LED_MODE_LABEL = { 1: 'Wave →', 2: 'Wave ←', 3: 'Pulse', 4: 'Solid' };
+
+        function buildLedStatusHTML(corners) {
+            return LED_CORNERS_ORDERED.map(c => {
+                const d      = corners[c] || {};
+                const color  = parseInt(d.color) || 0;
+                const mode   = parseInt(d.mode)  || 4;
+                const info   = LED_COLOR_INFO[color] || { name: String(color), hex: '#ccc' };
+                const mLabel = LED_MODE_LABEL[mode] || String(mode);
+                const border = color === 1 ? '#d1d5db' : info.hex;
+                return `<div class="led-corner-chip">
+                    <div class="led-corner-chip-title">${LED_CORNER_LABEL[c]}</div>
+                    <div class="led-corner-chip-body">
+                        <span class="led-color-dot" style="background:${info.hex};border-color:${border};"></span>
+                        <span style="color:#1f2937;font-weight:600;">${info.name}</span>
+                        <span style="color:#9ca3af;">/ ${mLabel}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        let _ledLastOk = false;
+        let _ledPolling = false;   // guard: skip if previous request still in-flight
+
+        function updateLedStatus() {
+            if (_ledPolling) return;   // don't stack concurrent requests
+            _ledPolling = true;
+
+            fetch('/api/led/get', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    _ledPolling = false;
+                    const dot  = document.getElementById('ledStatusDot');
+                    const age  = document.getElementById('ledStatusAge');
+                    const body = document.getElementById('ledStatusBody');
+                    if (!data.success || !data.corners) {
+                        dot.className = 'led-status-dot error';
+                        age.textContent = new Date().toLocaleTimeString() + ' · offline';
+                        body.className = '';
+                        body.innerHTML = '<div class="led-status-unavailable">LED service not reachable — is the robot running?</div>';
+                        _ledLastOk = false;
+                        return;
+                    }
+                    dot.className = 'led-status-dot live';
+                    age.textContent = new Date().toLocaleTimeString();
+                    body.className = 'led-status-body';
+                    body.innerHTML = buildLedStatusHTML(data.corners);
+                    _ledLastOk = true;
+                })
+                .catch(() => {
+                    _ledPolling = false;
+                    const dot  = document.getElementById('ledStatusDot');
+                    const age  = document.getElementById('ledStatusAge');
+                    const body = document.getElementById('ledStatusBody');
+                    dot.className  = 'led-status-dot error';
+                    age.textContent = new Date().toLocaleTimeString() + ' · offline';
+                    body.className = '';
+                    body.innerHTML = '<div class="led-status-unavailable">LED service not reachable — is the robot running?</div>';
+                    _ledLastOk = false;
+                });
+        }
+
+        updateLedStatus();
+        setInterval(updateLedStatus, 5000);   // query robot every 5 s
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# RegisterAction.srv
+#
+# Called by the Docker/GUI node when the user creates a single new action.
+# The robot checks whether the name conflicts with any of its own DB actions
+# and replies immediately.
+#
+# Request  ─────────────────────────────────────────────────────────────────────
+mecanumbot_msgs/ActionDescriptor action
+
+---
+
+# Response ─────────────────────────────────────────────────────────────────────
+# success:  true  → no conflict, action loaded into robot memory
+#           false → conflict found, action rejected
+# conflict: human-readable reason if success=false, empty string otherwise
+bool success
+string conflict

@@ -1,0 +1,26 @@
+# SyncActions.srv
+#
+# Called by the Docker/GUI node on startup to push the host's full action
+# database to the robot.  The robot loads accepted actions into memory only
+# (never written to its own DB).  Conflicting actions (name already exists on
+# the robot) are rejected.
+#
+# The response also returns the robot's own actions so the host UI can display
+# what is available on the robot side.
+
+# Request  ─────────────────────────────────────────────────────────────────────
+mecanumbot_msgs/ActionDescriptor[] actions
+
+---
+
+# Response ─────────────────────────────────────────────────────────────────────
+# success:         true if all actions were accepted without conflict
+# accepted_count:  number of host actions loaded into the robot's memory
+# conflict_names:  names of conflicting actions (empty if none)
+# conflict_reasons: human-readable reason per conflict (parallel array)
+# robot_actions:   the robot's own DB actions (lets the host UI show them)
+bool success
+int32 accepted_count
+string[] conflict_names
+string[] conflict_reasons
+mecanumbot_msgs/ActionDescriptor[] robot_actions

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Controls - MecanumBot</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f3f4f6;
+            min-height: 100vh;
+            color: #1f2937;
+        }
+        
+        .ribbon {
+            background: #2563eb;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .ribbon-title { color: white; font-size: 16px; font-weight: 600; }
+        
+        .user-section { display: flex; align-items: center; gap: 12px; }
+        
+        .user-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .back-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.15s;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .back-btn:hover { background: rgba(255, 255, 255, 0.25); }
+        
+        .toolbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 16px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            gap: 8px;
+        }
+        
+        .tab-button {
+            background: transparent;
+            color: #6b7280;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .tab-button:hover { color: #2563eb; }
+        
+        .tab-button.active {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+        
+        .main-content { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .page-header {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-header h1 { font-size: 20px; color: #1f2937; margin-bottom: 8px; }
+        .page-header p { font-size: 13px; color: #6b7280; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            font-size: 16px;
+            color: #1f2937;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .form-group { margin-bottom: 16px; }
+        
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Segoe UI', sans-serif;
+            transition: border-color 0.15s;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .btn-primary:hover { background: #1e40af; }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover { background: #dc2626; }
+        
+        .mapping-list { max-height: 600px; overflow-y: auto; }
+        
+        .mapping-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .mapping-info { flex: 1; }
+        
+        .mapping-label {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .mapping-details {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .info-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            color: #1e40af;
+        }
+
+        .sync-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 7px;
+            border-radius: 3px;
+            border: 1px solid #e5e7eb;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .sync-badge.sync-ok      { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .sync-badge.sync-fail    { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .sync-badge.sync-unknown { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+    </style>
+</head>
+<body>
+    <div class="ribbon">
+        <span class="ribbon-title">🤖 MecanumBot - Map Controls</span>
+        <div class="user-section">
+            <div class="user-badge">👤 {{ user_name }}</div>
+            <a href="/main-dashboard?user_name={{ user_name }}" class="back-btn">← Back to Dashboard</a>
+        </div>
+    </div>
+    
+    <div class="toolbar">
+        <button class="tab-button active" onclick="switchTab('buttons', event)">🎮 Button Mappings</button>
+        <button class="tab-button" onclick="switchTab('joysticks', event)">🕹️ Analog Inputs (Joysticks & Triggers)</button>
+    </div>
+    
+    <div class="main-content">
+        <div class="page-header">
+            <h1>Map Controller to Actions</h1>
+            <p>Assign your created actions to controller buttons, joysticks, and triggers</p>
+        </div>
+        
+        <!-- Button Mappings Tab -->
+        <div id="buttons-tab" class="tab-content active">
+            <div class="content-grid">
+                <div class="card">
+                    <h2>Map Button to Action</h2>
+                    <div class="info-box">
+                        <strong>Note:</strong> Button actions will use the trigger mode defined in the action (once or hold)
+                    </div>
+                    <form method="POST" action="/map-controls/save-button">
+                        <input type="hidden" name="user_name" value="{{ user_name }}">
+                        <div class="form-group">
+                            <label for="button_name">Select Button</label>
+                            <select id="button_name" name="button_name" required>
+                                <option value="">-- Select Button --</option>
+                                {% for btn in buttons %}
+                                <option value="{{ btn }}">{{ btn }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="action_name">Select Action</label>
+                            <select id="action_name" name="action_name" required>
+                                <option value="">-- Select Action --</option>
+                                {% for action_name, action_data in button_actions.items() %}
+                                <option value="{{ action_name }}">
+                                    {{ action_name }}
+                                    {% if action_data.type == 'button_hold' %}
+                                        (Hold)
+                                    {% else %}
+                                        (Once)
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Save Mapping</button>
+                    </form>
+                </div>
+                
+                <div class="card">
+                    <h2>Current Button Mappings</h2>
+                    <div class="mapping-list">
+                        {% if button_mappings %}
+                            {% for button_name, mapping_data in button_mappings.items() %}
+                            <div class="mapping-item" data-mapping-btn="{{ button_name }}">
+                                <div class="mapping-info">
+                                    <div class="mapping-label">
+                                        🎮 {{ button_name }}
+                                        <span class="sync-badge sync-unknown">⊘ Not synced</span>
+                                    </div>
+                                    <div class="mapping-details">
+                                        → {{ mapping_data.action }}
+                                        {% if mapping_data.trigger_mode == 'hold' %}
+                                            (Hold)
+                                        {% else %}
+                                            (Once)
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <form method="POST" action="/map-controls/delete-button" style="margin: 0;">
+                                    <input type="hidden" name="user_name" value="{{ user_name }}">
+                                    <input type="hidden" name="button_name" value="{{ button_name }}">
+                                    <button type="submit" class="btn btn-danger">Delete</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="text-align: center; padding: 40px 0; color: #9ca3af;">
+                                <p>No button mappings configured</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Joystick Mappings Tab -->
+        <div id="joysticks-tab" class="tab-content">
+            <div class="content-grid">
+                <div class="card">
+                    <h2>Map Analog Input to Action</h2>
+                    <div class="info-box">
+                        <strong>Note:</strong> Analog inputs (joysticks and triggers) receive continuous axis values from -1.0 to 1.0
+                    </div>
+                    <form method="POST" action="/map-controls/save-joystick">
+                        <input type="hidden" name="user_name" value="{{ user_name }}">
+                        <div class="form-group">
+                            <label for="joystick_name">Select Analog Input</label>
+                            <select id="joystick_name" name="joystick_name" required>
+                                <option value="">-- Select Analog Input --</option>
+                                {% for joy in joysticks %}
+                                <option value="{{ joy }}">{{ joy }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="joy_action_name">Select Action</label>
+                            <select id="joy_action_name" name="action_name" required>
+                                <option value="">-- Select Action --</option>
+                                {% for action_name in joystick_actions.keys() %}
+                                <option value="{{ action_name }}">{{ action_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Save Mapping</button>
+                    </form>
+                </div>
+                
+                <div class="card">
+                    <h2>Current Analog Input Mappings</h2>
+                    <div class="mapping-list">
+                        {% if joystick_mappings %}
+                            {% for joystick_name, action_name in joystick_mappings.items() %}
+                            <div class="mapping-item" data-mapping-joy="{{ joystick_name }}">
+                                <div class="mapping-info">
+                                    <div class="mapping-label">
+                                        🕹️ {{ joystick_name }}
+                                        <span class="sync-badge sync-unknown">⊘ Not synced</span>
+                                    </div>
+                                    <div class="mapping-details">→ {{ action_name }}</div>
+                                </div>
+                                <form method="POST" action="/map-controls/delete-joystick" style="margin: 0;">
+                                    <input type="hidden" name="user_name" value="{{ user_name }}">
+                                    <input type="hidden" name="joystick_name" value="{{ joystick_name }}">
+                                    <button type="submit" class="btn btn-danger">Delete</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="text-align: center; padding: 40px 0; color: #9ca3af;">
+                                <p>No analog input mappings configured</p>
+                                <p style="font-size: 12px; margin-top: 8px;">Map joysticks or triggers to actions above</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function switchTab(tabName, event) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Highlight selected button
+            event.target.classList.add('active');
+        }
+
+        // ── Filter action selects to only show successfully-synced actions ─────
+        function filterActionSelects() {
+            fetch('/api/sync-status')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data || !data.attempted) return;
+                    const conflictNames = new Set(
+                        (data.conflicts || []).map(c => c.name).filter(Boolean)
+                    );
+                    if (conflictNames.size === 0) return;
+
+                    ['action_name', 'joy_action_name'].forEach(selectId => {
+                        const sel = document.getElementById(selectId);
+                        if (!sel) return;
+                        Array.from(sel.options).forEach(opt => {
+                            if (opt.value && conflictNames.has(opt.value)) {
+                                opt.disabled = true;
+                                opt.title = 'Sync conflict — not available on the robot';
+                                opt.text = '⚠ ' + opt.value + ' (conflict)';
+                            }
+                        });
+                    });
+                })
+                .catch(() => {});
+        }
+        filterActionSelects();
+
+        // ── Per-mapping sync status badges ────────────────────────────────────
+        function refreshMappingSyncStatus() {
+            fetch('/api/mapping-sync-status')
+                .then(r => r.json())
+                .then(data => {
+                    const badge = (cls, text) => {
+                        const b = document.createElement('span');
+                        b.className = 'sync-badge ' + cls;
+                        b.textContent = text;
+                        return b;
+                    };
+
+                    const allItems = [
+                        ...document.querySelectorAll('[data-mapping-btn]'),
+                        ...document.querySelectorAll('[data-mapping-joy]')
+                    ];
+
+                    // Remove old badges
+                    allItems.forEach(item => {
+                        const old = item.querySelector('.sync-badge');
+                        if (old) old.remove();
+                    });
+
+                    if (!data || !data.attempted) {
+                        allItems.forEach(item => {
+                            item.querySelector('.mapping-label').appendChild(
+                                badge('sync-unknown', '⊘ Not synced'));
+                        });
+                        return;
+                    }
+
+                    if (!data.success) {
+                        allItems.forEach(item => {
+                            item.querySelector('.mapping-label').appendChild(
+                                badge('sync-fail', '⚠ Robot offline'));
+                        });
+                        return;
+                    }
+
+                    const loadedBtns = new Set(data.loaded_button_names || []);
+                    const loadedJoys = new Set(data.loaded_joystick_names || []);
+
+                    document.querySelectorAll('[data-mapping-btn]').forEach(item => {
+                        const name   = item.getAttribute('data-mapping-btn');
+                        const synced = loadedBtns.has(name);
+                        item.querySelector('.mapping-label').appendChild(
+                            badge(synced ? 'sync-ok' : 'sync-fail',
+                                  synced ? '✓ Synced' : '⊘ Not synced'));
+                    });
+                    document.querySelectorAll('[data-mapping-joy]').forEach(item => {
+                        const name   = item.getAttribute('data-mapping-joy');
+                        const synced = loadedJoys.has(name);
+                        item.querySelector('.mapping-label').appendChild(
+                            badge(synced ? 'sync-ok' : 'sync-fail',
+                                  synced ? '✓ Synced' : '⊘ Not synced'));
+                    });
+                })
+                .catch(() => {});
+        }
+        refreshMappingSyncStatus();
+        setInterval(refreshMappingSyncStatus, 10000);
+    </script>
+</body>
+</html>
