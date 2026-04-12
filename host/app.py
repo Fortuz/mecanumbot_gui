@@ -5,6 +5,12 @@ import json
 
 from database import IDatabase
 from database import Database
+from database import (
+    DatabaseDirectoryError,
+    DatabasePermissionError,
+    DatabaseSchemaError,
+    DatabaseConnectionError,
+)
 import database as _db_constants  # for ACTION_* / PUBLISH_* module-level constants
 import docker_node  # single import — all globals accessed as docker_node.X
 
@@ -501,6 +507,67 @@ class FlaskApp:
 
 
 if __name__ == "__main__":
-    db = Database("/host_docs/actions.db")
+    import sys
+
+    _db_path = "/host_docs/actions.db"
+
+    try:
+        db = Database(_db_path)
+    except DatabaseDirectoryError as e:
+        print(
+            f"\n"
+            f"  [FATAL] Database directory missing or could not be created.\n"
+            f"\n"
+            f"  {e}\n"
+            f"\n"
+            f"  Make sure the Docker volume is mounted correctly.\n"
+            f"  Start the container with:\n"
+            f"\n"
+            f"      ./start_docker.sh\n"
+            f"\n"
+            f"  Or add the volume flag manually:\n"
+            f"\n"
+            f"      docker run -v ~/Documents:/host_docs mecanumbot-gui\n"
+            f"\n"
+            f"  Then create the directory on the host if it does not exist:\n"
+            f"\n"
+            f"      mkdir -p ~/Documents\n",
+            flush=True,
+        )
+        sys.exit(1)
+    except DatabasePermissionError as e:
+        print(
+            f"\n"
+            f"  [FATAL] Database directory is not writable.\n"
+            f"\n"
+            f"  {e}\n"
+            f"\n"
+            f"  Fix permissions on the host machine:\n"
+            f"\n"
+            f"      chmod 755 ~/Documents\n",
+            flush=True,
+        )
+        sys.exit(1)
+    except DatabaseSchemaError as e:
+        print(
+            f"\n"
+            f"  [FATAL] Database schema is outdated or corrupt.\n"
+            f"\n"
+            f"  {e}\n"
+            f"\n"
+            f"  A fresh database will be created automatically on next start.\n",
+            flush=True,
+        )
+        sys.exit(1)
+    except DatabaseConnectionError as e:
+        print(
+            f"\n"
+            f"  [FATAL] Could not connect to the database.\n"
+            f"\n"
+            f"  {e}\n",
+            flush=True,
+        )
+        sys.exit(1)
+
     flask_app = FlaskApp(db)
     flask_app.run()

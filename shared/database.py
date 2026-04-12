@@ -68,6 +68,24 @@ from datetime import datetime
 from database_interface import IDatabase
 
 
+# ── Custom exceptions ─────────────────────────────────────────────────────────
+
+class DatabaseDirectoryError(Exception):
+    """Raised when the directory that should contain the database does not exist
+    or cannot be created (e.g. missing Docker volume mount)."""
+
+class DatabasePermissionError(Exception):
+    """Raised when the database directory exists but is not writable."""
+
+class DatabaseSchemaError(Exception):
+    """Raised when the on-disk database has an outdated or corrupt schema
+    (missing columns).  Delete the database file and restart to recover."""
+
+class DatabaseConnectionError(Exception):
+    """Raised when SQLite cannot open the database file for any other reason
+    (e.g. file is not a valid SQLite database, disk full, etc.)."""
+
+
 # ── Action type constants ─────────────────────────────────────────────────────
 
 ACTION_BUTTON_ONCE = "button_once"   # fires once on button press
@@ -128,8 +146,8 @@ class Database(IDatabase):
         """
         Create all tables if they do not exist (fresh database).
         If the database already exists, validate that every expected column is
-        present.  Raises RuntimeError if the schema is outdated or corrupt —
-        delete the DB file and restart to recover.
+        present.  Raises a custom exception if the schema is outdated, the
+        directory is missing/unwritable, or SQLite cannot open the file.
         Skips all work after the first successful call in this process.
         """
         if self._initialized:
@@ -137,7 +155,38 @@ class Database(IDatabase):
         with self._init_lock:
             if self._initialized:   # re-check after acquiring lock
                 return
-            os.makedirs(self._db_dir, exist_ok=True)
+
+            # ── Directory checks ──────────────────────────────────────────────
+            if not os.path.isdir(self._db_dir):
+                try:
+                    os.makedirs(self._db_dir, exist_ok=True)
+                except OSError as e:
+                    raise DatabaseDirectoryError(
+                        f"Database directory does not exist and could not be created: "
+                        f"'{self._db_dir}'\n"
+                        f"  OS error: {e}\n"
+                        f"  This usually means the Docker volume is not mounted.\n"
+                        f"  Start the container with: ./start_docker.sh"
+                    ) from e
+            elif not os.access(self._db_dir, os.W_OK):
+                raise DatabasePermissionError(
+                    f"Database directory is not writable: '{self._db_dir}'\n"
+                    f"  Fix permissions on the host machine: chmod 755 ~/Documents"
+                )
+            else:
+                os.makedirs(self._db_dir, exist_ok=True)
+
+            # ── Open connection ───────────────────────────────────────────────
+            try:
+                conn_test = sqlite3.connect(self._db_path)
+                conn_test.close()
+            except sqlite3.DatabaseError as e:
+                raise DatabaseConnectionError(
+                    f"SQLite cannot open the database file: '{self._db_path}'\n"
+                    f"  SQLite error: {e}\n"
+                    f"  The file may be corrupt. Delete it and restart:\n"
+                    f"      rm {self._db_path}"
+                ) from e
 
             with sqlite3.connect(self._db_path) as conn:
                 c = conn.cursor()
@@ -197,9 +246,6 @@ class Database(IDatabase):
                 conn.commit()
 
                 # ── Schema validation ─────────────────────────────────────────
-                # Runs on every startup (fresh or existing DB).  Raises immediately
-                # if any expected column is missing instead of crashing later with a
-                # confusing SQL error.
                 missing = {}
                 for table, expected_cols in _EXPECTED_COLUMNS.items():
                     c.execute(f"PRAGMA table_info({table})")
@@ -212,10 +258,11 @@ class Database(IDatabase):
                     details = '; '.join(
                         f"{tbl}: missing {cols}" for tbl, cols in missing.items()
                     )
-                    raise RuntimeError(
-                        f"[DB] Schema mismatch — the database at '{self._db_path}' is outdated or corrupt.\n"
+                    raise DatabaseSchemaError(
+                        f"Database schema is outdated or corrupt: '{self._db_path}'\n"
                         f"  {details}\n"
-                        f"  Delete '{self._db_path}' and restart the application to create a fresh database."
+                        f"  Delete the file and restart to create a fresh database:\n"
+                        f"      rm {self._db_path}"
                     )
 
             self._initialized = True

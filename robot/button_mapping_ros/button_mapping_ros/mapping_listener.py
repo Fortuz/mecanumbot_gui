@@ -49,6 +49,12 @@ from geometry_msgs.msg import Twist
 
 from database_interface import IDatabase
 from database import Database
+from database import (
+    DatabaseDirectoryError,
+    DatabasePermissionError,
+    DatabaseSchemaError,
+    DatabaseConnectionError,
+)
 
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
@@ -166,8 +172,17 @@ class MappingListener(Node):
             all_actions       = self._db.get_all_actions()
             button_mappings   = self._db.get_all_button_mappings()
             joystick_mappings = self._db.get_all_joystick_mappings()
+        except DatabaseSchemaError as e:
+            self.get_logger().error(
+                f'[DB] Schema error — database is outdated or corrupt: {e}\n'
+                f'  Delete the database file and restart the node to create a fresh one.')
+            return
+        except DatabaseConnectionError as e:
+            self.get_logger().error(
+                f'[DB] Connection error — could not read from database: {e}')
+            return
         except Exception as e:
-            self.get_logger().error(f'DB load error: {e}')
+            self.get_logger().error(f'[DB] Unexpected error while loading database: {e}')
             return
 
         for name, data in all_actions.items():
@@ -623,7 +638,45 @@ def main(args=None, db: IDatabase = None):
 
     if db is None:
         db_path = os.path.expanduser('~/Documents/actions.db')
-        db = Database(db_path)
+        try:
+            db = Database(db_path)
+        except DatabaseDirectoryError as e:
+            print(
+                f'\n[FATAL] Database directory missing or could not be created.\n'
+                f'  {e}\n'
+                f'  Make sure ~/Documents exists on the robot:\n'
+                f'      mkdir -p ~/Documents\n',
+                flush=True,
+            )
+            rclpy.shutdown()
+            return
+        except DatabasePermissionError as e:
+            print(
+                f'\n[FATAL] Database directory is not writable.\n'
+                f'  {e}\n'
+                f'  Fix permissions:\n'
+                f'      chmod 755 ~/Documents\n',
+                flush=True,
+            )
+            rclpy.shutdown()
+            return
+        except DatabaseSchemaError as e:
+            print(
+                f'\n[FATAL] Database schema is outdated or corrupt.\n'
+                f'  {e}\n'
+                f'  A fresh database will be created automatically on next start.\n',
+                flush=True,
+            )
+            rclpy.shutdown()
+            return
+        except DatabaseConnectionError as e:
+            print(
+                f'\n[FATAL] Could not connect to the database.\n'
+                f'  {e}\n',
+                flush=True,
+            )
+            rclpy.shutdown()
+            return
 
     node = MappingListener(db)
     try:
