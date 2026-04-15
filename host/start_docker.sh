@@ -39,6 +39,10 @@ fi
 echo "✓ Image built successfully."
 echo ""
 
+# Ensure the host Documents directory exists and is owned by the current user
+# before Docker mounts it (Docker auto-creates missing mount dirs as root).
+mkdir -p ~/Documents
+
 # Start Docker container (foreground-attached via logs, not -d)
 echo "Starting mecanumbot-gui container..."
 sudo docker run -d \
@@ -50,7 +54,7 @@ sudo docker run -d \
     --user "$(id -u):$(id -g)" \
     -e ROS_DOMAIN_ID=30 \
     -e ROS_LOCALHOST_ONLY=0 \
-    -v ~/Dokumentumok:/host_docs \
+    -v ~/Documents:/host_docs \
     mecanumbot-gui
 
 if [ $? -ne 0 ]; then
@@ -62,8 +66,8 @@ echo "✓ Docker container started successfully!"
 echo ""
 echo "=========================================="
 echo "Flask GUI: http://localhost:8080"
-echo "Log file:  ~/Dokumentumok/controller_status.log"
-echo "Recordings:~/Dokumentumok/recordings/"
+echo "Log file:  ~/Documents/controller_status.log"
+echo "Recordings:~/Documents/recordings/"
 echo "=========================================="
 echo ""
 echo "Press Ctrl+C to stop the container."

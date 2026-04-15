@@ -270,7 +270,7 @@ class FlaskApp:
                 return jsonify({"started": False, "error": str(e)}), 500
             if not session_dir:
                 return jsonify({"started": False,
-                                "error": "Could not create recording directory — check that ~/Dokumentumok is mounted correctly"}), 500
+                                "error": "Could not create recording directory — check that ~/Documents is mounted correctly"}), 500
             return jsonify({"started": True, "dir": session_dir, "dir_name": os.path.basename(session_dir)})
 
         @app.post('/api/recording/stop')
