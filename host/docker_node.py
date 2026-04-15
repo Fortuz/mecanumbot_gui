@@ -112,7 +112,7 @@ RECORDABLE_TOPICS = [
     {'topic': '/xbox_controller/connection_status','msg_type': 'mecanumbot_msgs/msg/ControllerStatus','description': 'Controller connection status'},
     {'topic': '/cmd_vel',                          'msg_type': 'geometry_msgs/msg/Twist',          'description': 'Velocity commands sent to robot'},
     {'topic': '/joy',                              'msg_type': 'sensor_msgs/msg/Joy',              'description': 'Raw joystick input from joy_node'},
-    {'topic': '/opencr_state',                     'msg_type': 'mecanumbot_msgs/msg/OpenCRState',  'description': 'Raw OpenCR state: wheel vel/pos/curr, servos, IMU, battery'},
+    {'topic': '/mecanumbot/opencr_state',          'msg_type': 'mecanumbot_msgs/msg/OpenCRState',  'description': 'Raw OpenCR state: wheel vel/pos/curr, servos, IMU, battery'},
     {'topic': '/odom',                             'msg_type': 'nav_msgs/msg/Odometry',            'description': 'Odometry: integrated position + velocity from wheel encoders'},
     {'topic': '/imu',                              'msg_type': 'sensor_msgs/msg/Imu',              'description': 'IMU: orientation, angular velocity, linear acceleration'},
     {'topic': '/joint_states',                     'msg_type': 'sensor_msgs/msg/JointState',       'description': 'Joint states: 4 wheel + head + 2 grabber positions (rad)'},
@@ -205,8 +205,8 @@ class DockerNode(Node):
             self._sync_mappings_client = None
 
         if LED_SRV_AVAILABLE:
-            self._led_set_client = self.create_client(SetLedStatus, 'set_led_status')
-            self._led_get_client = self.create_client(GetLedStatus, 'get_led_status')
+            self._led_set_client = self.create_client(SetLedStatus, 'mecanumbot/set_led_status')
+            self._led_get_client = self.create_client(GetLedStatus, 'mecanumbot/get_led_status')
         else:
             self._led_set_client = None
             self._led_get_client = None
@@ -217,7 +217,7 @@ class DockerNode(Node):
         self._rec_led_file = None   # distinct file for LED state when selected
 
         if _OPENCR_MSG_AVAILABLE:
-            self.create_subscription(OpenCRState, '/opencr_state', self._opencr_callback, 10)
+            self.create_subscription(OpenCRState, 'mecanumbot/opencr_state', self._opencr_callback, 10)
 
     # ── Controller status ─────────────────────────────────────────────────────
 

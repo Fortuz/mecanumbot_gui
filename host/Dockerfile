@@ -23,7 +23,7 @@ RUN pip3 install --no-cache-dir -r /app/requirements.txt
 
 # ── Build mecanumbot_msgs so SyncActions service type is available ────────────
 # Build context is the project root, so shared/ is reachable
-COPY shared/mecanumbot_msgs/ /ws/src/mecanumbot_msgs/
+#COPY shared/mecanumbot_msgs/ /ws/src/mecanumbot_msgs/
 WORKDIR /ws
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     colcon build --packages-select mecanumbot_msgs && \

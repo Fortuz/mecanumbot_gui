@@ -17,8 +17,8 @@ cleanup() {
 trap cleanup INT TERM
 
 # Set ROS Domain ID
-export ROS_DOMAIN_ID=30
-
+#export ROS_DOMAIN_ID=30
+echo $ROS_DOMAIN_ID
 # Stop and remove existing container if running
 echo "Stopping existing container (if any)..."
 sudo docker stop mecanumbot-gui 2>/dev/null
@@ -50,7 +50,7 @@ sudo docker run -d \
     --user "$(id -u):$(id -g)" \
     -e ROS_DOMAIN_ID=30 \
     -e ROS_LOCALHOST_ONLY=0 \
-    -v ~/Dokumentumok:/host_docs \
+    -v ~/Documents:/host_docs \
     mecanumbot-gui
 
 if [ $? -ne 0 ]; then
