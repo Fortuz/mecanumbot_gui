@@ -19,7 +19,7 @@ cleanup() {
 trap cleanup INT TERM
 
 # Set ROS Domain ID (must match the host)
-export ROS_DOMAIN_ID=30
+export ROS_DOMAIN_ID=19
 export ROS_LOCALHOST_ONLY=0
 
 # Directory containing this script (robot/)

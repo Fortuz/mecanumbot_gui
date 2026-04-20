@@ -239,8 +239,7 @@ class MappingListener(Node):
             mappings = self._db.get_all_mappings(uid)
             response.success       = True
             response.mapping_names = [m['name'] for m in mappings]
-            # Encode full mapping detail in message as a JSON array so the
-            # host can populate button/joystick rows without a separate service.
+            # Full mapping detail encoded as JSON array in message field
             response.message       = json.dumps(mappings)
         except Exception as e:
             response.success       = False

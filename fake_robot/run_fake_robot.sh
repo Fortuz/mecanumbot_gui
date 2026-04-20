@@ -17,7 +17,7 @@ cleanup() {
 trap cleanup INT TERM
 
 # Must match the host Docker container (start_docker.sh)
-export ROS_DOMAIN_ID=30
+export ROS_DOMAIN_ID=19
 export ROS_LOCALHOST_ONLY=0
 export ROS_SUPER_CLIENT=true
 

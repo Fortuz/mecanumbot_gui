@@ -554,8 +554,8 @@ class DockerNode(Node):
         """Fetch all actions stored in the robot's local DB for the given user.
         Returns (actions_dict | None, error_str | None).
         """
-        if not ROBOT_ACTIVE:
-            return None, 'Robot not connected'
+       # if not ROBOT_ACTIVE:
+        #    return None, 'Robot not connected'
 
         req           = GetRobotActions.Request()
         req.user_name = user_name
@@ -589,6 +589,9 @@ class DockerNode(Node):
         event  = threading.Event()
         future = client.call_async(request)
         future.add_done_callback(lambda _: event.set())
+        # If the future completed before the callback was registered, set manually
+        if future.done():
+            event.set()
         if not event.wait(timeout=timeout):
             return None
         try:
@@ -607,11 +610,12 @@ class DockerNode(Node):
             return [], 'GetMappings timed out — robot offline?'
         if not result.success:
             return [], result.message
-        try:
-            mappings = json.loads(result.message)
-        except Exception:
-            # Fallback: robot running old firmware — return name-only dicts
-            mappings = [{'name': n, 'buttons': [], 'joysticks': []} for n in result.mapping_names]
+        mappings = []
+        for mj in result.mappings_json:
+            try:
+                mappings.append(json.loads(mj))
+            except Exception:
+                pass
         return mappings, ''
 
     def save_mapping_to_robot(self, mapping_name: str,
