@@ -8,68 +8,122 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
+from typing import Optional
 from database_interface import IDatabase
 
 
 class MockDatabase(IDatabase):
-    """In-memory IDatabase — zero I/O, fast, hermetic."""
+    """In-memory IDatabase — zero I/O, fast, hermetic.
 
-    def __init__(self, actions=None, button_mappings=None, joystick_mappings=None):
-        self._actions         = dict(actions         or {})
-        self._button_mappings = dict(button_mappings or {})
-        self._joy_mappings    = dict(joystick_mappings or {})
+    Internal layout
+    ---------------
+    _users    : {username: user_id}
+    _actions  : {user_id: {name: {'id': int, 'type': str, 'tuples': list}}}
+    _mappings : {user_id: {name: {'buttons': [...], 'joysticks': [...]}}}
+    _schemes  : {user_id: {name: [topics]}}
+    """
+
+    def __init__(self):
+        self._users    = {}   # str -> int
+        self._next_uid = 1
+        self._actions  = {}   # uid -> {name -> {...}}
+        self._next_aid = 1
+        self._mappings = {}   # uid -> {name -> {buttons, joysticks}}
+        self._schemes  = {}   # uid -> {name -> [topics]}
+
+    # ── User management ───────────────────────────────────────────────────────
+
+    def get_or_create_user(self, username: str) -> int:
+        if username not in self._users:
+            self._users[username] = self._next_uid
+            self._next_uid += 1
+        return self._users[username]
 
     # ── Actions ───────────────────────────────────────────────────────────────
 
-    def save_action(self, name: str, tuples: list, action_type: str = 'button_once') -> bool:
-        self._actions[name] = {'type': action_type, 'tuples': list(tuples)}
-        return True
-
-    def get_all_actions(self, action_type: str = None) -> dict:
-        if action_type is None:
-            return dict(self._actions)
-        return {k: v for k, v in self._actions.items() if v['type'] == action_type}
-
-    def delete_action(self, name: str) -> bool:
-        self._actions.pop(name, None)
-        # cascade
-        to_del_btn = [b for b, v in self._button_mappings.items() if v.get('action') == name]
-        for b in to_del_btn:
-            del self._button_mappings[b]
-        to_del_joy = [j for j, a in self._joy_mappings.items() if a == name]
-        for j in to_del_joy:
-            del self._joy_mappings[j]
-        return True
-
-    # ── Button Mappings ───────────────────────────────────────────────────────
-
-    def save_button_mapping(self, button_name: str, action_name: str,
-                             trigger_mode: str = 'once') -> bool:
-        if action_name not in self._actions:
+    def save_action(self, user_id: int, name: str, tuples: list,
+                    action_type: str = 'button_once') -> bool:
+        if user_id is None:
             return False
-        self._button_mappings[button_name] = {
-            'action': action_name, 'trigger_mode': trigger_mode
+        bucket = self._actions.setdefault(user_id, {})
+        aid = bucket[name]['id'] if name in bucket else self._next_aid
+        if name not in bucket:
+            self._next_aid += 1
+        bucket[name] = {'id': aid, 'type': action_type, 'tuples': list(tuples)}
+        return True
+
+    def get_all_actions(self, user_id: int,
+                        action_type: Optional[str] = None) -> dict:
+        if user_id is None:
+            return {}
+        bucket = self._actions.get(user_id, {})
+        if action_type is None:
+            return dict(bucket)
+        return {k: v for k, v in bucket.items() if v['type'] == action_type}
+
+    def delete_action(self, user_id: int, name: str) -> bool:
+        if user_id is None:
+            return False
+        bucket = self._actions.get(user_id, {})
+        bucket.pop(name, None)
+        return True
+
+    # ── Mappings ──────────────────────────────────────────────────────────────
+
+    def save_mapping(self, user_id: int, name: str,
+                     button_entries: list, joystick_entries: list) -> bool:
+        if user_id is None:
+            return False
+        bucket = self._mappings.setdefault(user_id, {})
+        bucket[name] = {
+            'buttons': [
+                {'button': b, 'action': a, 'trigger_mode': m}
+                for b, a, m in button_entries
+            ],
+            'joysticks': [
+                {'joystick': j, 'action': a}
+                for j, a in joystick_entries
+            ],
         }
         return True
 
-    def get_all_button_mappings(self) -> dict:
-        return dict(self._button_mappings)
+    def get_all_mappings(self, user_id: int) -> list:
+        if user_id is None:
+            return []
+        bucket = self._mappings.get(user_id, {})
+        return [{'name': n, **v} for n, v in bucket.items()]
 
-    def delete_button_mapping(self, button_name: str) -> bool:
-        self._button_mappings.pop(button_name, None)
-        return True
+    def get_mapping(self, user_id: int, name: str) -> Optional[dict]:
+        if user_id is None:
+            return None
+        bucket = self._mappings.get(user_id, {})
+        if name not in bucket:
+            return None
+        return {'name': name, **bucket[name]}
 
-    # ── Joystick Mappings ─────────────────────────────────────────────────────
-
-    def save_joystick_mapping(self, joystick_name: str, action_name: str) -> bool:
-        if action_name not in self._actions:
+    def delete_mapping(self, user_id: int, name: str) -> bool:
+        if user_id is None:
             return False
-        self._joy_mappings[joystick_name] = action_name
+        bucket = self._mappings.get(user_id, {})
+        bucket.pop(name, None)
         return True
 
-    def get_all_joystick_mappings(self) -> dict:
-        return dict(self._joy_mappings)
+    # ── Recording schemes ─────────────────────────────────────────────────────
 
-    def delete_joystick_mapping(self, joystick_name: str) -> bool:
-        self._joy_mappings.pop(joystick_name, None)
+    def save_recording_scheme(self, user_id: int, name: str,
+                              topics: list) -> bool:
+        if user_id is None:
+            return False
+        self._schemes.setdefault(user_id, {})[name] = list(topics)
+        return True
+
+    def get_all_recording_schemes(self, user_id: int) -> dict:
+        if user_id is None:
+            return {}
+        return dict(self._schemes.get(user_id, {}))
+
+    def delete_recording_scheme(self, user_id: int, name: str) -> bool:
+        if user_id is None:
+            return False
+        self._schemes.get(user_id, {}).pop(name, None)
         return True

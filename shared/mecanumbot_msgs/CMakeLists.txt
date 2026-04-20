@@ -31,9 +31,16 @@ set(msg_files
 set(srv_files
   "srv/GetLedStatus.srv"
   "srv/SetLedStatus.srv"
-  "srv/SyncActions.srv"
-  "srv/RegisterAction.srv"
-  "srv/SyncMappings.srv"
+  "srv/GetRobotActions.srv"
+  "srv/GetMappings.srv"
+  "srv/SaveMapping.srv"
+  "srv/DeleteRobotMapping.srv"
+  "srv/ApplyMapping.srv"
+  "srv/SaveRobotAction.srv"
+  "srv/DeleteRobotAction.srv"
+  "srv/GetRecordingSchemes.srv"
+  "srv/SaveRecordingScheme.srv"
+  "srv/DeleteRecordingScheme.srv"
 )
 
 #set(action_files

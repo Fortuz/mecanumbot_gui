@@ -1,0 +1,10 @@
+# DeleteRobotMapping.srv
+# Delete a named controller mapping from the robot's local database for a user.
+
+# Request
+string user_name
+string mapping_name
+---
+# Response
+bool success
+string message

@@ -6,37 +6,44 @@ Mapping Listener Node  (robot-side)
 Responsibilities
 ----------------
 1. Owns the **robot's local SQLite database** (~/Documents/actions.db).
-   On startup it loads the robot's own actions and mappings from that DB.
-   These are the actions defined directly on the robot.
+   Actions saved directly on the robot live here permanently.
+   No actions are pre-loaded into memory at startup.
 
-2. Exposes the **/mecanumbot/sync_actions** ROS2 service
-   (mecanumbot_msgs/srv/SyncActions).
-   The Docker/GUI node calls this service to push the host's actions to the
-   robot node.  The received actions are:
-     - Checked for name conflicts against the robot's own DB actions.
-     - If accepted: stored IN MEMORY ONLY — never written to the robot's DB.
-     - The robot's database is never modified by the sync.
-   The service returns: success flag, accepted count, conflict list (JSON).
+2. Exposes the **/mecanumbot/get_robot_actions** ROS2 service
+   (mecanumbot_msgs/srv/GetRobotActions).
+   The Docker/GUI node calls this service to retrieve all actions stored in
+   the robot's local DB for a given user.  The host uses this to let the
+   user browse and select "robot" actions in the UI.
 
-3. Subscribes to Xbox controller button/joystick events and publishes the
-   mapped ROS2 messages.  Both robot-local and host-synced actions are
-   available for execution.
+3. Exposes the **/mecanumbot/apply_mapping** ROS2 service.
+   When the user selects a mapping in the dashboard this service is called:
+     - from_robot_db=True  → load the mapping and its referenced actions
+                             directly from the robot's local database.
+     - from_robot_db=False → the host sends the full mapping data (button /
+                             joystick assignments + action definitions) inline.
+   Either way, self.actions is fully replaced with only the actions needed
+   by the newly selected mapping.
 
-Two sources of actions (in memory at runtime)
----------------------------------------------
-  robot DB actions  — persistent, survive restarts, defined on the robot
-  host-synced       — ephemeral, live only while the node is running,
-                      re-sent by the Docker node on every startup
+4. Subscribes to Xbox controller button/joystick events and publishes the
+   mapped ROS2 messages using the currently active mapping's actions.
 
-Conflict rule
--------------
-An incoming action conflicts if its name already exists in the robot's loaded
-actions (from the local DB).  Names must be unique across both sources.
-The error response tells you the existing type and incoming type.
+Active-mapping memory model
+---------------------------
+  self.actions        — actions for the CURRENTLY ACTIVE mapping only.
+                        Fully replaced on every ApplyMapping call.
+                        Empty until the first mapping is applied.
+  self.button_mappings   — {button_name: {action, trigger_mode}}
+  self.joystick_mappings — {joystick_name: action_name}
+
+Conflict rule (SaveRobotAction)
+--------------------------------
+At save time, if an action with the same name already exists in the robot's
+DB for the requesting user, the service returns success=False unless the
+request has overwrite=True.
 
 Database
 --------
-  ~/Documents/actions.db  (robot's own actions only — host actions never here)
+  ~/Documents/actions.db  (robot's own actions only)
 """
 
 import json
@@ -65,20 +72,24 @@ except ImportError:
     print("Warning: mecanumbot_msgs not available — AccessMotorCmd/ButtonEvent/JoystickEvent will not work")
 
 try:
-    from mecanumbot_msgs.srv import SyncActions, RegisterAction, SetLedStatus, SyncMappings
-    from mecanumbot_msgs.msg import ActionTuple, ActionDescriptor
+    from mecanumbot_msgs.srv import GetRobotActions, SetLedStatus
+    from mecanumbot_msgs.srv import (
+        GetMappings, SaveMapping, DeleteRobotMapping, ApplyMapping,
+        SaveRobotAction, DeleteRobotAction,
+        GetRecordingSchemes, SaveRecordingScheme, DeleteRecordingScheme,
+    )
     MECANUMBOT_SRV_AVAILABLE = True
 except ImportError:
     MECANUMBOT_SRV_AVAILABLE = False
-    print("Warning: mecanumbot_msgs services not available — SyncActions/RegisterAction services disabled")
+    print("Warning: mecanumbot_msgs services not available — GetRobotActions and mapping services disabled")
 
 # ─────────────────────────────────────────────────────────────────────────────
 class MappingListener(Node):
     """
     ROS2 Node that:
-    - serves the SyncActions service (receives host actions, checks conflicts)
-    - loads its own persistent actions from the local SQLite database
-    - keeps host-synced actions in memory ONLY (never written to the robot DB)
+    - serves GetRobotActions (returns all robot DB actions for a user)
+    - on ApplyMapping: loads only the active mapping's actions into memory
+      (from robot DB when from_robot_db=True, from host inline data otherwise)
     - subscribes to controller events and publishes mapped actions
     """
 
@@ -88,17 +99,16 @@ class MappingListener(Node):
         # ── Database ──────────────────────────────────────────────────────────
         self._db = db
 
-        # ── In-memory state ───────────────────────────────────────────────────
-        # self.actions holds BOTH robot-local actions (from DB) and
-        # host-synced actions (from SyncActions service).
-        # Host-synced actions are kept in memory only — never written to the DB.
+        # Each service request carries the username; user_id is resolved
+        # on demand via _uid_for(username).  No actions are pre-loaded.
+
+        # ── Active-mapping in-memory state ────────────────────────────────────
+        # self.actions holds ONLY the actions for the currently active mapping.
+        # It is fully replaced on every ApplyMapping call and is empty until
+        # the first mapping is applied.
         self.button_mappings   = {}
         self.joystick_mappings = {}
-        self.actions           = {}   # all actions available for execution
-
-        # self._db_actions is a snapshot of only the robot's own DB actions.
-        # Used for conflict checking — host-synced actions never go in here.
-        self._db_actions       = {}
+        self.actions           = {}   # current mapping's actions only
 
         # ── Publisher caches ──────────────────────────────────────────────────
         self._publishers_dict      = {}
@@ -124,25 +134,37 @@ class MappingListener(Node):
             self.get_logger().warn(
                 'mecanumbot_msgs not available — controller subscriptions disabled')
 
-        # ── SyncActions service server ────────────────────────────────────────
+        # ── GetRobotActions service server ────────────────────────────────────
         if MECANUMBOT_SRV_AVAILABLE:
-            self._sync_srv = self.create_service(
-                SyncActions,
-                '/mecanumbot/sync_actions',
-                self._sync_actions_callback
+            self._get_robot_actions_srv = self.create_service(
+                GetRobotActions,
+                '/mecanumbot/get_robot_actions',
+                self._get_robot_actions_callback
             )
-            self._register_srv = self.create_service(
-                RegisterAction,
-                '/mecanumbot/register_action',
-                self._register_action_callback
-            )
-            self._sync_mappings_srv = self.create_service(
-                SyncMappings,
-                '/mecanumbot/sync_mappings',
-                self._sync_mappings_callback
-            )
+            # ── New persistent mapping/action management services ──────────────
+            self._get_mappings_srv  = self.create_service(
+                GetMappings,        '/mecanumbot/get_mappings',   self._get_mappings_callback)
+            self._save_mapping_srv  = self.create_service(
+                SaveMapping,        '/mecanumbot/save_mapping',   self._save_mapping_callback)
+            self._del_mapping_srv   = self.create_service(
+                DeleteRobotMapping, '/mecanumbot/delete_mapping', self._delete_mapping_callback)
+            self._apply_mapping_srv = self.create_service(
+                ApplyMapping,       '/mecanumbot/apply_mapping',  self._apply_mapping_callback)
+            self._save_action_srv   = self.create_service(
+                SaveRobotAction,    '/mecanumbot/save_action',    self._save_robot_action_callback)
+            self._del_action_srv    = self.create_service(
+                DeleteRobotAction,  '/mecanumbot/delete_action',  self._delete_robot_action_callback)
+            self._get_schemes_srv = self.create_service(
+                GetRecordingSchemes, '/mecanumbot/get_recording_schemes', self._get_recording_schemes_callback)
+            self._save_scheme_srv = self.create_service(
+                SaveRecordingScheme, '/mecanumbot/save_recording_scheme', self._save_recording_scheme_callback)
+            self._del_scheme_srv  = self.create_service(
+                DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme', self._delete_recording_scheme_callback)
             self.get_logger().info(
-                'Services ready: /mecanumbot/sync_actions, /mecanumbot/register_action, /mecanumbot/sync_mappings')
+                'Services ready: /mecanumbot/get_robot_actions, '
+                'get_mappings, save_mapping, delete_mapping, apply_mapping, '
+                'save_action, delete_action, '
+                'get_recording_schemes, save_recording_scheme, delete_recording_scheme')
 
             # ── LED set service client ─────────────────────────────────────────
             self._led_set_client = self.create_client(
@@ -151,11 +173,8 @@ class MappingListener(Node):
         else:
             self._led_set_client = None
             self.get_logger().warn(
-                'SyncActions/RegisterAction services NOT available — mecanumbot_msgs not installed. '
+                'GetRobotActions and mapping services NOT available — mecanumbot_msgs not installed. '
                 'Actions will only be loaded from the local database.')
-
-        # ── Load from local DB ────────────────────────────────────────────────
-        self._load_from_db()
 
         # ── Periodic state log (every 30 s) ──────────────────────────────────
         self.create_timer(30.0, self._log_state)
@@ -166,233 +185,370 @@ class MappingListener(Node):
     # Database helpers
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _load_from_db(self):
-        """Load all actions and mappings from the local database into memory."""
+    def _uid_for(self, user_name: str) -> int:
+        """Return the DB user_id for the given username, creating the row if needed."""
+        name = (user_name or "").strip() or "unknown"
+        return self._db.get_or_create_user(name)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # GetRobotActions service callback
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _get_robot_actions_callback(self, request, response):
+        """Return all actions stored in the robot's local DB for the requesting user."""
+        self.get_logger().info('GetRobotActions service called')
         try:
-            all_actions       = self._db.get_all_actions()
-            button_mappings   = self._db.get_all_button_mappings()
-            joystick_mappings = self._db.get_all_joystick_mappings()
-        except DatabaseSchemaError as e:
-            self.get_logger().error(
-                f'[DB] Schema error — database is outdated or corrupt: {e}\n'
-                f'  Delete the database file and restart the node to create a fresh one.')
-            return
-        except DatabaseConnectionError as e:
-            self.get_logger().error(
-                f'[DB] Connection error — could not read from database: {e}')
-            return
+            uid = self._uid_for(request.user_name)
+            db_actions = self._db.get_all_actions(uid)
         except Exception as e:
-            self.get_logger().error(f'[DB] Unexpected error while loading database: {e}')
-            return
+            self.get_logger().error(f'GetRobotActions: failed to read robot DB: {e}')
+            response.success      = False
+            response.action_names = []
+            response.action_types = []
+            response.actions_json = []
+            return response
 
-        for name, data in all_actions.items():
-            tuples = [tuple(t) for t in data['tuples']]
-            self.actions[name]     = {'type': data['type'], 'tuples': tuples}
-            self._db_actions[name] = {'type': data['type'], 'tuples': tuples}
+        action_names = []
+        action_types = []
+        actions_json = []
+        for aname, data in db_actions.items():
+            action_names.append(aname)
+            action_types.append(data.get('type', 'button'))
+            actions_json.append(json.dumps({
+                'name':   aname,
+                'type':   data.get('type', 'button'),
+                'tuples': data.get('tuples', []),
+            }))
 
-        for btn, info in button_mappings.items():
-            self.button_mappings[btn] = {
-                'action': info['action'], 'trigger_mode': info['trigger_mode']}
-
-        self.joystick_mappings = dict(joystick_mappings)
-
+        response.success      = True
+        response.action_names = action_names
+        response.action_types = action_types
+        response.actions_json = actions_json
         self.get_logger().info(
-            f'Loaded from local DB: {len(self.actions)} actions, '
-            f'{len(self.button_mappings)} button mappings, '
-            f'{len(self.joystick_mappings)} joystick mappings')
+            f'GetRobotActions: returning {len(action_names)} action(s) for "{request.user_name}"')
+        return response
 
     # ══════════════════════════════════════════════════════════════════════════
-    # SyncActions service callback
+    # GetMappings — return all mapping names stored in robot DB
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _sync_actions_callback(self, request, response):
-        """
-        Receive a list of actions from the host, check for name conflicts
-        against the robot's own actions (loaded from local DB), and load
-        accepted actions into memory ONLY — they are NOT written to the
-        robot's database.
+    def _get_mappings_callback(self, request, response):
+        self.get_logger().info('GetMappings service called')
+        try:
+            uid      = self._uid_for(request.user_name)
+            mappings = self._db.get_all_mappings(uid)
+            response.success       = True
+            response.mapping_names = [m['name'] for m in mappings]
+            response.message       = ''
+        except Exception as e:
+            response.success       = False
+            response.mapping_names = []
+            response.message       = str(e)
+            self.get_logger().error(f'GetMappings error: {e}')
+        return response
 
-        Conflict rule: any action whose name already exists in self.actions
-        (i.e. was loaded from the robot's local DB) is a conflict.
-        Host-to-host duplicates within the same sync call are also caught.
-        """
-        self.get_logger().info('SyncActions service called')
+    # ══════════════════════════════════════════════════════════════════════════
+    # SaveMapping — persist a named mapping (+ required actions) in robot DB
+    # ══════════════════════════════════════════════════════════════════════════
 
-        conflicts_names   = []
-        conflicts_reasons = []
-        accepted          = []
+    def _save_mapping_callback(self, request, response):
+        name = request.mapping_name.strip()
+        self.get_logger().info(f'SaveMapping service called: "{name}"')
+        try:
+            uid = self._uid_for(request.user_name)
 
-        # Remove all previously host-synced actions before loading the new batch.
-        host_synced_names = [n for n in self.actions if n not in self._db_actions]
-        for n in host_synced_names:
-            del self.actions[n]
-        if host_synced_names:
-            self.get_logger().info(
-                f'SyncActions: cleared {len(host_synced_names)} previously synced host action(s)')
+            # Conflict check at save time
+            if not request.overwrite:
+                existing = self._db.get_mapping(uid, name)
+                if existing is not None:
+                    response.success = False
+                    response.message = (
+                        f'Mapping "{name}" already exists in the robot DB. '
+                        'Use overwrite=true to replace it.')
+                    self.get_logger().warn(
+                        f'SaveMapping: conflict — "{name}" already exists')
+                    return response
 
-        for action_desc in request.actions:
-            name        = action_desc.name.strip()
-            action_type = action_desc.action_type
-
-            if not name:
-                continue
-
-            if name in self.actions:
-                existing_type = self.actions[name]['type']
-                conflicts_names.append(name)
-                conflicts_reasons.append(
-                    f'Action "{name}" already exists on the robot '
-                    f'(existing type: {existing_type}, '
-                    f'incoming type: {action_type}). '
-                    'Action names must be unique.'
-                )
-            else:
-                accepted.append(action_desc)
-
-        # Load accepted actions into memory ONLY — no DB write
-        for action_desc in accepted:
-            name        = action_desc.name
-            action_type = action_desc.action_type
-            self.actions[name] = {
-                'type': action_type,
-                'tuples': [
+            # Save any bundled actions first
+            for action_desc in request.actions:
+                aname = action_desc.name.strip()
+                if not aname:
+                    continue
+                tuples = [
                     (t.topic, t.message, t.message_type,
                      float(t.scale_x), float(t.scale_y),
                      float(t.offset_x), float(t.offset_y),
                      t.publish_type, t.service_name)
                     for t in action_desc.tuples
                 ]
-            }
-            self.get_logger().info(f'  + Loaded (memory-only) action "{name}" ({action_type})')
+                self._db.save_action(uid, aname, tuples, action_desc.action_type)
+                self.get_logger().info(f'  + Saved action "{aname}" to robot DB')
 
-        response.success        = len(conflicts_names) == 0
-        response.accepted_count = len(accepted)
-        response.conflict_names   = conflicts_names
-        response.conflict_reasons = conflicts_reasons
+            # Build button / joystick entry lists
+            btn_entries = []
+            for i in range(len(request.button_names)):
+                btn    = request.button_names[i]
+                action = (request.button_action_names[i]
+                          if i < len(request.button_action_names) else '')
+                mode   = (request.button_trigger_modes[i]
+                          if i < len(request.button_trigger_modes) else 'once')
+                if btn and action:
+                    btn_entries.append((btn, action, mode))
 
-        # Build robot_actions: the robot's own DB-loaded actions
-        robot_actions = []
-        for name, data in self._db_actions.items():
-            desc        = ActionDescriptor()
-            desc.name   = name
-            desc.action_type = data['type']
-            desc.tuples = []
-            for t in data.get('tuples', []):
-                at              = ActionTuple()
-                at.topic        = t[0]
-                at.message      = t[1]
-                at.message_type = t[2] if len(t) > 2 else 'std_msgs/msg/String'
-                at.scale_x      = float(t[3]) if len(t) > 3 else 1.0
-                at.scale_y      = float(t[4]) if len(t) > 4 else 1.0
-                at.offset_x     = float(t[5]) if len(t) > 5 else 0.0
-                at.offset_y     = float(t[6]) if len(t) > 6 else 0.0
-                at.publish_type = t[7] if len(t) > 7 else 'topic'
-                at.service_name = t[8] if len(t) > 8 else ''
-                desc.tuples.append(at)
-            robot_actions.append(desc)
-        response.robot_actions = robot_actions
+            joy_entries = []
+            for j in range(len(request.joystick_names)):
+                joy    = request.joystick_names[j]
+                action = (request.joystick_action_names[j]
+                          if j < len(request.joystick_action_names) else '')
+                if joy and action:
+                    joy_entries.append((joy, action))
 
-        if conflicts_names:
-            self.get_logger().warn(
-                f'SyncActions: {len(accepted)} loaded, '
-                f'{len(conflicts_names)} conflict(s):\n' +
-                '\n'.join(f'  * {n}: {r}' for n, r in zip(conflicts_names, conflicts_reasons)))
-        else:
+            ok = self._db.save_mapping(uid, name, btn_entries, joy_entries)
+            response.success = ok
+            response.message = '' if ok else 'DB write failed'
             self.get_logger().info(
-                f'SyncActions: all {len(accepted)} actions loaded into memory')
-
+                f'SaveMapping "{name}": {len(btn_entries)} btn, '
+                f'{len(joy_entries)} joy — success={ok}')
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'SaveMapping error: {e}')
         return response
 
-    def _register_action_callback(self, request, response):
-        """
-        Service handler for /mecanumbot/register_action.
+    # ══════════════════════════════════════════════════════════════════════════
+    # DeleteRobotMapping — remove a named mapping from robot DB
+    # ══════════════════════════════════════════════════════════════════════════
 
-        Called when the user creates a single new action in the GUI.
-        Checks for a name conflict against the robot's own DB actions only.
-        If no conflict: loads the action into memory (not the DB) and returns
-        success=true so the Docker node can save it to the host DB.
-        """
-        name        = (request.action.name or '').strip()
-        action_type = request.action.action_type or 'button_once'
+    def _delete_mapping_callback(self, request, response):
+        name = request.mapping_name.strip()
+        self.get_logger().info(f'DeleteRobotMapping service called: "{name}"')
+        try:
+            ok = self._db.delete_mapping(self._uid_for(request.user_name), name)
+            response.success = ok
+            response.message = '' if ok else 'Delete failed'
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'DeleteRobotMapping error: {e}')
+        return response
 
-        self.get_logger().info(f'RegisterAction called: "{name}" ({action_type})')
+    # ══════════════════════════════════════════════════════════════════════════
+    # ApplyMapping — activate a named mapping in robot memory
+    # ══════════════════════════════════════════════════════════════════════════
 
-        if not name:
-            response.success  = False
-            response.conflict = 'Action name cannot be empty.'
-            return response
+    def _apply_mapping_callback(self, request, response):
+        name          = request.mapping_name.strip()
+        from_robot_db = request.from_robot_db
+        self.get_logger().info(
+            f'ApplyMapping service called: "{name}" from_robot_db={from_robot_db}')
 
-        if name in self.actions:
-            existing_type = self.actions[name]['type']
-            origin = 'robot DB' if name in self._db_actions else 'host (already registered)'
-            response.success  = False
-            response.conflict = (
-                f'Action "{name}" already exists ({origin}, '
-                f'type: {existing_type}). Choose a different name.'
-            )
-            self.get_logger().warn(f'  ! Conflict: {response.conflict}')
-            return response
+        try:
+            # Always start with a clean slate — replace the entire active
+            # mapping state rather than merging with whatever was loaded before.
+            self.actions           = {}
+            self.button_mappings   = {}
+            self.joystick_mappings = {}
 
-        # No conflict — load into memory
-        self.actions[name] = {
-            'type': action_type,
-            'tuples': [
+            btn_map = {}
+            joy_map = {}
+
+            if from_robot_db:
+                # ── Load mapping and its actions from the robot's own DB ──────
+                uid     = self._uid_for(request.user_name)
+                mapping = self._db.get_mapping(uid, name)
+                if mapping is None:
+                    response.success = False
+                    response.message = f'Mapping "{name}" not found in robot DB'
+                    return response
+
+                # Collect the action names this mapping references
+                needed_names = {b['action'] for b in mapping['buttons']}
+                needed_names |= {j['action'] for j in mapping['joysticks']}
+
+                # Load only the referenced actions from DB (not all actions)
+                all_db_actions = self._db.get_all_actions(uid)
+                for aname, data in all_db_actions.items():
+                    if aname in needed_names:
+                        self.actions[aname] = {
+                            'type':   data['type'],
+                            'tuples': [tuple(t) for t in data['tuples']],
+                        }
+                        self.get_logger().info(f'  + Loaded action "{aname}" from robot DB')
+
+                for b in mapping['buttons']:
+                    btn_map[b['button']] = {
+                        'action':       b['action'],
+                        'trigger_mode': b.get('trigger_mode', 'once'),
+                    }
+                for j in mapping['joysticks']:
+                    joy_map[j['joystick']] = j['action']
+
+            else:
+                # ── Host sends the full mapping data inline ───────────────────
+                for action_desc in request.actions:
+                    aname = action_desc.name.strip()
+                    if not aname:
+                        continue
+                    tuples = [
+                        (t.topic, t.message, t.message_type,
+                         float(t.scale_x), float(t.scale_y),
+                         float(t.offset_x), float(t.offset_y),
+                         t.publish_type, t.service_name)
+                        for t in action_desc.tuples
+                    ]
+                    self.actions[aname] = {'type': action_desc.action_type, 'tuples': tuples}
+                    self.get_logger().info(f'  + Loaded action "{aname}" from host (inline)')
+
+                for i in range(len(request.button_names)):
+                    btn    = request.button_names[i]
+                    action = (request.button_action_names[i]
+                              if i < len(request.button_action_names) else '')
+                    mode   = (request.button_trigger_modes[i]
+                              if i < len(request.button_trigger_modes) else 'once')
+                    if btn and action:
+                        btn_map[btn] = {'action': action, 'trigger_mode': mode}
+
+                for j in range(len(request.joystick_names)):
+                    joy    = request.joystick_names[j]
+                    action = (request.joystick_action_names[j]
+                              if j < len(request.joystick_action_names) else '')
+                    if joy and action:
+                        joy_map[joy] = action
+
+            self.button_mappings   = btn_map
+            self.joystick_mappings = joy_map
+
+            response.success               = True
+            response.message               = f'Applied mapping "{name}"'
+            response.loaded_button_count   = len(btn_map)
+            response.loaded_joystick_count = len(joy_map)
+            self.get_logger().info(
+                f'ApplyMapping "{name}": {len(self.actions)} action(s), '
+                f'{len(btn_map)} buttons, {len(joy_map)} joysticks loaded into memory')
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'ApplyMapping error: {e}')
+        return response
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # SaveRobotAction — persist an action in robot DB
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _save_robot_action_callback(self, request, response):
+        desc  = request.action
+        name  = desc.name.strip()
+        atype = desc.action_type
+        self.get_logger().info(f'SaveRobotAction service called: "{name}" ({atype})')
+        try:
+            uid = self._uid_for(request.user_name)
+
+            # Conflict check at save time
+            if not request.overwrite:
+                existing = self._db.get_all_actions(uid)
+                if name in existing:
+                    response.success = False
+                    response.message = (
+                        f'Action "{name}" already exists in the robot DB. '
+                        'Use overwrite=true to replace it.')
+                    self.get_logger().warn(
+                        f'SaveRobotAction: conflict — "{name}" already exists')
+                    return response
+
+            tuples = [
                 (t.topic, t.message, t.message_type,
                  float(t.scale_x), float(t.scale_y),
                  float(t.offset_x), float(t.offset_y),
                  t.publish_type, t.service_name)
-                for t in request.action.tuples
+                for t in desc.tuples
             ]
-        }
-        response.success  = True
-        response.conflict = ''
-        self.get_logger().info(
-            f'  + RegisterAction: loaded "{name}" into memory ({action_type})')
+            ok = self._db.save_action(uid, name, tuples, atype)
+            response.success = ok
+            response.message = '' if ok else 'DB write failed'
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'SaveRobotAction error: {e}')
         return response
 
     # ══════════════════════════════════════════════════════════════════════════
-    # SyncMappings service callback
+    # DeleteRobotAction — remove an action from robot DB
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _sync_mappings_callback(self, request, response):
-        """
-        Receive the full button and joystick mapping tables from the host and
-        overwrite the in-memory mappings.  The robot's local database is never
-        touched — mappings are stored in memory only.
-        """
-        self.get_logger().info('SyncMappings service called')
+    def _delete_robot_action_callback(self, request, response):
+        name = request.action_name.strip()
+        self.get_logger().info(f'DeleteRobotAction service called: "{name}"')
+        try:
+            ok = self._db.delete_action(self._uid_for(request.user_name), name)
+            if ok:
+                # Also remove from the active mapping's memory if present,
+                # so controller events for this action fail cleanly.
+                self.actions.pop(name, None)
+            response.success = ok
+            response.message = '' if ok else 'Delete failed'
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'DeleteRobotAction error: {e}')
+        return response
 
-        # Always overwrite — clear existing in-memory mappings first
-        self.button_mappings   = {}
-        self.joystick_mappings = {}
+    # ══════════════════════════════════════════════════════════════════════════
+    # Recording scheme services
+    # ══════════════════════════════════════════════════════════════════════════
 
-        loaded_btn_names = []
-        loaded_joy_names = []
+    def _get_recording_schemes_callback(self, request, response):
+        self.get_logger().info('GetRecordingSchemes service called')
+        try:
+            uid     = self._uid_for(request.user_name)
+            schemes = self._db.get_all_recording_schemes(uid)
+            response.scheme_names       = list(schemes.keys())
+            response.scheme_topics_json = [
+                json.dumps(topics) for topics in schemes.values()
+            ]
+            response.success = True
+            response.message = ''
+        except Exception as e:
+            response.success            = False
+            response.scheme_names       = []
+            response.scheme_topics_json = []
+            response.message            = str(e)
+            self.get_logger().error(f'GetRecordingSchemes error: {e}')
+        return response
 
-        for i in range(len(request.button_names)):
-            btn    = request.button_names[i]
-            action = request.action_names[i] if i < len(request.action_names) else ''
-            mode   = request.trigger_modes[i] if i < len(request.trigger_modes) else 'once'
-            if btn:
-                self.button_mappings[btn] = {'action': action, 'trigger_mode': mode}
-                loaded_btn_names.append(btn)
+    def _save_recording_scheme_callback(self, request, response):
+        name = request.scheme_name.strip()
+        self.get_logger().info(f'SaveRecordingScheme service called: "{name}"')
+        try:
+            uid = self._uid_for(request.user_name)
+            if not request.overwrite:
+                existing = self._db.get_all_recording_schemes(uid)
+                if name in existing:
+                    response.success = False
+                    response.message = (
+                        f'Recording scheme "{name}" already exists in the robot DB. '
+                        'Use overwrite=true to replace it.')
+                    return response
+            ok = self._db.save_recording_scheme(uid, name, list(request.topics))
+            response.success = ok
+            response.message = '' if ok else 'DB write failed'
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'SaveRecordingScheme error: {e}')
+        return response
 
-        for j in range(len(request.joystick_names)):
-            joy    = request.joystick_names[j]
-            action = request.joystick_action_names[j] if j < len(request.joystick_action_names) else ''
-            if joy:
-                self.joystick_mappings[joy] = action
-                loaded_joy_names.append(joy)
-
-        response.success               = True
-        response.loaded_button_count   = len(loaded_btn_names)
-        response.loaded_joystick_count = len(loaded_joy_names)
-        response.loaded_button_names   = loaded_btn_names
-        response.loaded_joystick_names = loaded_joy_names
-
-        self.get_logger().info(
-            f'SyncMappings: loaded {len(loaded_btn_names)} button mapping(s), '
-            f'{len(loaded_joy_names)} joystick mapping(s) into memory')
+    def _delete_recording_scheme_callback(self, request, response):
+        name = request.scheme_name.strip()
+        self.get_logger().info(f'DeleteRecordingScheme service called: "{name}"')
+        try:
+            uid = self._uid_for(request.user_name)
+            ok  = self._db.delete_recording_scheme(uid, name)
+            response.success = ok
+            response.message = '' if ok else 'Delete failed'
+        except Exception as e:
+            response.success = False
+            response.message = str(e)
+            self.get_logger().error(f'DeleteRecordingScheme error: {e}')
         return response
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -464,11 +620,14 @@ class MappingListener(Node):
 
             mapping_info = self.button_mappings[button_name]
             action_name  = mapping_info['action']
-            trigger_mode = mapping_info['trigger_mode']
 
             if action_name not in self.actions:
                 self.get_logger().warn(f'Action "{action_name}" not configured')
                 return
+
+            # Derive trigger mode from action type (button_once → once, button_hold → hold)
+            action_type = self.actions[action_name].get('type', 'button_once')
+            trigger_mode = 'hold' if action_type == 'button_hold' else 'once'
 
             if trigger_mode == 'once' and event_type == 'PRESSED':
                 self.publish_action(action_name, button_name)

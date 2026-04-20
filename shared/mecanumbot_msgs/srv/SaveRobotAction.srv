@@ -1,0 +1,12 @@
+# SaveRobotAction.srv
+# Persistently save a single action to the robot's local database for a user.
+# If an action with the same name already exists it is overwritten.
+
+# Request
+string user_name
+mecanumbot_msgs/ActionDescriptor action
+bool overwrite
+---
+# Response
+bool success
+string message

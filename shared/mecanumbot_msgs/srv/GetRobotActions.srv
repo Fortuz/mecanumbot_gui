@@ -1,0 +1,11 @@
+# GetRobotActions.srv
+# Return all actions stored in the robot's local DB for the requesting user.
+
+# Request
+string user_name
+---
+# Response
+bool success
+string[] action_names
+string[] action_types
+string[] actions_json

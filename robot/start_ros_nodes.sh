@@ -45,7 +45,7 @@ if [ -f "$MECANUMBOT_MAIN" ]; then
     source "$MECANUMBOT_MAIN"
     echo "✓ mecanumbot-main workspace sourced"
 else
-    echo "⚠ mecanumbot-main not found at $MECANUMBOT_MAIN — SyncActions/RegisterAction may be unavailable"
+    echo "⚠ mecanumbot-main not found at $MECANUMBOT_MAIN — some robot services may be unavailable"
 fi
 
 # 3. Local colcon workspace (xbox_controller_pkg, button_mapping_ros, mecanumbot_msgs)

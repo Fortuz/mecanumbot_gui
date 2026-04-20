@@ -1,0 +1,10 @@
+# DeleteRecordingScheme.srv
+# Delete a named recording scheme from the robot's local database for a user.
+
+# Request
+string user_name
+string scheme_name
+---
+# Response
+bool success
+string message

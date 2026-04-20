@@ -1,0 +1,12 @@
+# SaveRecordingScheme.srv
+# Persistently save a recording scheme to the robot's local database for a user.
+
+# Request
+string user_name
+string scheme_name
+string[] topics
+bool overwrite
+---
+# Response
+bool success
+string message

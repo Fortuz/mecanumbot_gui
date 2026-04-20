@@ -1,0 +1,10 @@
+# DeleteRobotAction.srv
+# Delete a named action from the robot's local database for a user.
+
+# Request
+string user_name
+string action_name
+---
+# Response
+bool success
+string message

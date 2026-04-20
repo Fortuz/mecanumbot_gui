@@ -1,0 +1,11 @@
+# GetRecordingSchemes.srv
+# Retrieve all recording schemes stored in the robot's local database for a user.
+
+# Request
+string user_name
+---
+# Response
+bool success
+string[] scheme_names
+string[] scheme_topics_json   # parallel array: each entry is a JSON array of topic strings
+string message

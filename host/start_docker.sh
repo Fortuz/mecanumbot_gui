@@ -42,6 +42,7 @@ echo ""
 # Ensure the host Documents directory exists and is owned by the current user
 # before Docker mounts it (Docker auto-creates missing mount dirs as root).
 mkdir -p ~/Documents
+sudo chown -R "$(id -u):$(id -g)" ~/Documents
 
 # Start Docker container (foreground-attached via logs, not -d)
 echo "Starting mecanumbot-gui container..."

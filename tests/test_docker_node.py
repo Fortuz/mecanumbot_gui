@@ -10,13 +10,9 @@ All ROS2 calls (publish, create_subscription, get_logger …) are replaced
 with MagicMock objects so the test never touches a real ROS2 graph.
 """
 
-import os
 import sys
 import time
-import threading
-import tempfile
-import pytest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 # conftest.py already added host/ and shared/ to sys.path.
 # We still need to stub heavy ROS2 / mecanumbot_msgs imports before
@@ -61,13 +57,25 @@ for _mod in ('std_msgs', 'std_msgs.msg',
     sys.modules.setdefault(_mod, types.ModuleType(_mod))
 
 # Give the msg stubs the class attributes docker_node.py will reference
-sys.modules['std_msgs.msg'].String = MagicMock
 sys.modules['sensor_msgs.msg'].Joy = MagicMock
 sys.modules['geometry_msgs.msg'].Twist = MagicMock
 
 # Stub mecanumbot_msgs so SYNC_SRV_AVAILABLE stays False (simpler path)
 for _mod in ('mecanumbot_msgs', 'mecanumbot_msgs.msg', 'mecanumbot_msgs.srv'):
     sys.modules.setdefault(_mod, types.ModuleType(_mod))
+
+# Provide all class attributes that docker_node.py imports at module level
+# Each service class needs a Request inner class
+for _cls in ('GetRobotActions', 'SetLedStatus', 'GetLedStatus',
+             'GetMappings', 'SaveMapping', 'DeleteRobotMapping',
+             'ApplyMapping', 'SaveRobotAction', 'DeleteRobotAction',
+             'GetRecordingSchemes', 'SaveRecordingScheme', 'DeleteRecordingScheme'):
+    mock_srv = MagicMock()
+    mock_srv.Request = MagicMock
+    setattr(sys.modules['mecanumbot_msgs.srv'], _cls, mock_srv)
+for _cls in ('ActionTuple', 'ActionDescriptor',
+             'ControllerStatus', 'ButtonEvent', 'JoystickEvent', 'OpenCRState'):
+    setattr(sys.modules['mecanumbot_msgs.msg'], _cls, MagicMock)
 
 # ── Now import the real module ────────────────────────────────────────────────
 import docker_node as dn
@@ -87,13 +95,9 @@ def _make_node(db=None):
     node._rec_led_file     = None
     node._rec_files        = {}
     node._rec_subs         = {}
-    node._robot_sync_lock  = threading.Lock()
     node._last_opencr_time = None
     node._robot_gone_timeout = 8.0
-    node._sync_done        = False
-    node._initial_sync_timer = MagicMock()
-    node._sync_client      = MagicMock()
-    node._register_client  = MagicMock()
+    node._get_robot_actions_client = MagicMock()
     node._logger           = MagicMock()
     node.get_logger        = lambda: node._logger
     node.destroy_subscription = MagicMock()
@@ -131,25 +135,6 @@ class TestStatusCallback:
 
         assert dn.LATEST_CONTROLLER_STATUS['connected'] is False
 
-    def test_str_callback_parses_json(self):
-        import json
-        node = _make_node()
-        msg = MagicMock()
-        msg.data = json.dumps({
-            'connected': True,
-            'controller_type': 'PS4',
-            'time_since_last_input': 0.3,
-            'timestamp': 99
-        })
-        node._status_callback_str(msg)
-        assert dn.LATEST_CONTROLLER_STATUS['controller_type'] == 'PS4'
-
-    def test_str_callback_handles_invalid_json(self):
-        node = _make_node()
-        msg = MagicMock()
-        msg.data = 'not-json-at-all'
-        # Should not raise
-        node._status_callback_str(msg)
 
 
 # ── Robot watchdog ────────────────────────────────────────────────────────────
@@ -180,42 +165,41 @@ class TestRobotWatchdog:
         assert dn.ROBOT_ACTIVE is False
 
 
-# ── Sync result: no actions in DB ─────────────────────────────────────────────
+# ── GetRobotActions tests ─────────────────────────────────────────────────────
 
-class TestSyncActionsNoActions:
+class TestGetRobotActions:
 
-    def setup_method(self):
-        dn.LATEST_SYNC_RESULT = {
-            "attempted": False, "success": None,
-            "accepted_count": 0, "conflicts": [], "timestamp": None
-        }
+    def test_robot_offline_returns_none(self):
+        """When robot is offline, get_robot_actions returns (None, error)."""
+        node = _make_node()
+        dn.ROBOT_ACTIVE = False
+        actions, err = node.get_robot_actions('testuser')
+        assert actions is None
+        assert 'not connected' in err.lower()
 
-    def test_empty_db_does_not_mark_as_attempted(self):
-        """
-        When the DB is empty, sync_actions_to_robot must leave attempted=False
-        so the UI badge stays '⊘ Not synced' instead of '✓ Synced'.
-        """
-        db   = MockDatabase()
-        node = _make_node(db)
+    def test_success_parses_response(self):
+        """When robot responds successfully, actions are parsed from JSON."""
+        node = _make_node()
+        dn.ROBOT_ACTIVE = True
 
-        # Patch SYNC_SRV_AVAILABLE to False so we hit the early-return branch
-        with patch.object(dn, 'SYNC_SRV_AVAILABLE', False):
-            node.sync_actions_to_robot()
+        resp              = MagicMock()
+        resp.success      = True
+        resp.action_names = ['move']
+        resp.action_types = ['joystick']
+        resp.actions_json = ['{"name":"move","type":"joystick","tuples":[]}']
 
-        # SYNC_SRV_AVAILABLE=False sets attempted=True with success=False
-        # We want to verify that path works correctly too
-        assert dn.LATEST_SYNC_RESULT['attempted'] is True
-        assert dn.LATEST_SYNC_RESULT['success']   is False
+        future = MagicMock()
+        future.done.return_value = True
+        future.result.return_value = resp
+        node._get_robot_actions_client = MagicMock()
+        node._get_robot_actions_client.call_async.return_value = future
 
-    def test_empty_db_with_srv_available_stays_not_attempted(self):
-        """When SYNC_SRV_AVAILABLE and DB is empty, attempted stays False."""
-        db   = MockDatabase()   # no actions
-        node = _make_node(db)
+        actions, err = node.get_robot_actions('testuser')
+        dn.ROBOT_ACTIVE = False
 
-        with patch.object(dn, 'SYNC_SRV_AVAILABLE', True):
-            node.sync_actions_to_robot()
-
-        assert dn.LATEST_SYNC_RESULT['attempted'] is False
+        assert err is None
+        assert 'move' in actions
+        assert actions['move']['type'] == 'joystick'
 
 
 # ── Recording helpers ─────────────────────────────────────────────────────────
@@ -284,42 +268,6 @@ class TestRecordLedCommand:
         assert 'BR' in written
         assert 'GREEN' in written    # color 2
         assert 'SOLID' in written    # mode 4
-
-
-class TestRecordSyncResult:
-
-    def test_does_nothing_when_no_rec_file(self):
-        node = _make_node()
-        node._rec_file = None
-        node.record_sync_result([], {'success': True, 'accepted_count': 0, 'conflicts': []})
-
-    def test_writes_conflict_lines(self):
-        node = _make_node()
-        fake_file = MagicMock()
-        node._rec_file = fake_file
-
-        result = {
-            'success': False,
-            'accepted_count': 1,
-            'conflicts': [
-                {'name': 'move_forward', 'category': 'button_once', 'reason': 'Name collision'}
-            ]
-        }
-        node.record_sync_result([], result)
-
-        written = ''.join(call.args[0] for call in fake_file.write.call_args_list)
-        assert 'move_forward' in written
-        assert 'Name collision' in written
-
-    def test_writes_no_conflicts_line(self):
-        node = _make_node()
-        fake_file = MagicMock()
-        node._rec_file = fake_file
-
-        node.record_sync_result([], {'success': True, 'accepted_count': 3, 'conflicts': []})
-
-        written = ''.join(call.args[0] for call in fake_file.write.call_args_list)
-        assert 'Conflicts    : none' in written
 
 
 # ── _make_rec_callback ────────────────────────────────────────────────────────

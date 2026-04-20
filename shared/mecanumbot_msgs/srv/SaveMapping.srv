@@ -1,0 +1,26 @@
+# SaveMapping.srv
+# Persistently save a named controller mapping (plus any required actions)
+# to the robot's local database under the given user.
+# If a mapping with the same name already exists and overwrite is false,
+# the request fails with a conflict message.
+
+# Request
+string user_name
+string mapping_name
+bool overwrite false
+
+# Button assignments
+string[] button_names
+string[] button_action_names
+string[] button_trigger_modes
+
+# Joystick assignments
+string[] joystick_names
+string[] joystick_action_names
+
+# Actions that this mapping references (robot stores them alongside the mapping)
+mecanumbot_msgs/ActionDescriptor[] actions
+---
+# Response
+bool success
+string message

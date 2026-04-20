@@ -1,6 +1,6 @@
 # ActionDescriptor.msg
 # A complete named action with its publish steps.
-# Used as ActionDescriptor[] in SyncActions.
+# Used in GetRobotActions, SaveRobotAction services.
 
 string       name         # unique action name
 string       action_type  # "button_once" | "button_hold" | "joystick"
