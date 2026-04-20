@@ -338,11 +338,12 @@ class FlaskApp:
 
         @app.get('/api/robot/mappings')
         def api_get_robot_mappings():
-            """Return mapping names stored on the robot."""
+            """Return mappings stored on the robot, including full button/joystick detail."""
             if self._node() is None:
-                return jsonify({"success": False, "names": [], "error": "ROS2 node not running"}), 503
-            names, err = self._node().get_robot_mappings()
-            return jsonify({"success": not err, "names": names, "error": err})
+                return jsonify({"success": False, "names": [], "mappings": [], "error": "ROS2 node not running"}), 503
+            mappings, err = self._node().get_robot_mappings()
+            names = [m['name'] for m in mappings]
+            return jsonify({"success": not err, "names": names, "mappings": mappings, "error": err})
 
         @app.post('/api/mappings/save')
         def api_save_mapping():

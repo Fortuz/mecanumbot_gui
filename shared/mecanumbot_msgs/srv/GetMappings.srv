@@ -8,4 +8,5 @@ string user_name
 # Response
 bool success
 string[] mapping_names
+string[] mappings_json
 string message

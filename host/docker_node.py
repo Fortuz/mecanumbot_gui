@@ -560,16 +560,12 @@ class DockerNode(Node):
         req           = GetRobotActions.Request()
         req.user_name = user_name
 
-        future = self._get_robot_actions_client.call_async(req)
-        elapsed, timeout, poll = 0.0, 5.0, 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                return None, 'GetRobotActions service timed out'
-            time.sleep(poll)
-            elapsed += poll
+        result = self._call_service(self._get_robot_actions_client, req, timeout=5.0)
+        if result is None:
+            return None, 'GetRobotActions service timed out'
 
         try:
-            resp = future.result()
+            resp = result
         except Exception as e:
             return None, str(e)
 
@@ -590,18 +586,20 @@ class DockerNode(Node):
 
     def _call_service(self, client, request, timeout=15.0):
         """Generic helper: call a service client and return (result | None)."""
-        future  = client.call_async(request)
-        elapsed = 0.0
-        poll    = 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                return None
-            time.sleep(poll)
-            elapsed += poll
-        return future.result()
+        event  = threading.Event()
+        future = client.call_async(request)
+        future.add_done_callback(lambda _: event.set())
+        if not event.wait(timeout=timeout):
+            return None
+        try:
+            return future.result()
+        except Exception:
+            return None
 
     def get_robot_mappings(self):
-        """Return (list_of_names, error_str)."""
+        """Return (list_of_mapping_dicts, error_str).
+        Each dict: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
+        """
         req           = GetMappings.Request()
         req.user_name = CURRENT_USER.get("name") or ""
         result = self._call_service(self._get_mappings_client, req)
@@ -609,7 +607,12 @@ class DockerNode(Node):
             return [], 'GetMappings timed out — robot offline?'
         if not result.success:
             return [], result.message
-        return list(result.mapping_names), ''
+        try:
+            mappings = json.loads(result.message)
+        except Exception:
+            # Fallback: robot running old firmware — return name-only dicts
+            mappings = [{'name': n, 'buttons': [], 'joysticks': []} for n in result.mapping_names]
+        return mappings, ''
 
     def save_mapping_to_robot(self, mapping_name: str,
                               button_entries: list,
@@ -773,17 +776,9 @@ class DockerNode(Node):
     # ── LED control ───────────────────────────────────────────────────────────
 
     def get_led_status(self):
-        req = GetLedStatus.Request()
-        future = self._led_get_client.call_async(req)
-        elapsed, timeout, poll = 0.0, 8.0, 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                return None, 'get_led_status timed out — robot offline?'
-            time.sleep(poll)
-            elapsed += poll
-        result = future.result()
+        result = self._call_service(self._led_get_client, GetLedStatus.Request(), timeout=8.0)
         if result is None:
-            return None, 'get_led_status call returned None'
+            return None, 'get_led_status timed out — robot offline?'
         state = {
             'FL': {'mode': result.fl_mode, 'color': result.fl_color},
             'FR': {'mode': result.fr_mode, 'color': result.fr_color},
@@ -816,16 +811,9 @@ class DockerNode(Node):
         req.bl_color = int(values['BL']['color'])
         req.br_mode  = int(values['BR']['mode'])
         req.br_color = int(values['BR']['color'])
-        future = self._led_set_client.call_async(req)
-        elapsed, timeout, poll = 0.0, 8.0, 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                return False, 'set_led_status timed out — robot offline?'
-            time.sleep(poll)
-            elapsed += poll
-        result = future.result()
+        result = self._call_service(self._led_set_client, req, timeout=8.0)
         if result is None:
-            return False, 'set_led_status call returned None'
+            return False, 'set_led_status timed out — robot offline?'
         msg = getattr(result, 'message', '') or ('OK' if result.success else 'Service returned failure')
         return result.success, msg
 

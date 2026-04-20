@@ -161,9 +161,13 @@
                 const hostData  = await hostResp.json();
                 const robotData = await robotResp.json();
 
-                // /api/mappings returns a plain array; /api/robot/mappings returns {names:[...]}
-                const hostList   = Array.isArray(hostData) ? hostData : [];
-                const robotNames = new Set(robotData.names || robotData.mapping_names || []);
+                // /api/mappings returns a plain array
+                // /api/robot/mappings returns {names:[...], mappings:[{name,buttons,joysticks},...]}
+                const hostList    = Array.isArray(hostData) ? hostData : [];
+                const robotList   = robotData.mappings || [];
+                const robotByName = {};
+                for (const m of robotList) robotByName[m.name] = m;
+                const robotNames  = new Set(Object.keys(robotByName));
 
                 allMappings = {};
                 for (const m of hostList) {
@@ -171,7 +175,7 @@
                 }
                 for (const name of robotNames) {
                     if (!allMappings[name]) {
-                        allMappings[name] = { source: 'robot', data: null };
+                        allMappings[name] = { source: 'robot', data: robotByName[name] };
                     }
                 }
 
@@ -212,8 +216,8 @@
                         <div class="mapping-item-actions">
                             <button class="btn btn-success btn-sm" style="padding:4px 10px;font-size:12px;"
                                     onclick='applyMapping(${JSON.stringify(name)})'>Apply</button>
-                            ${entry.data ? `<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"
-                                    onclick='modifyMapping(${JSON.stringify(name)})'>Modify</button>` : ''}
+                            <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"
+                                    onclick='modifyMapping(${JSON.stringify(name)})'>Modify</button>
                             <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;"
                                     onclick='deleteMapping(${JSON.stringify(name)})'>Delete</button>
                         </div>
@@ -426,18 +430,20 @@
         // ── Modify (pre-fill form) ────────────────────────────────────────────
         function modifyMapping(name) {
             const entry = allMappings[name];
-            if (!entry || !entry.data) { showToast('Cannot modify — no host data available', 'warning'); return; }
-            const m = entry.data;
+            if (!entry) { showToast('Mapping not found', 'warning'); return; }
 
-            document.getElementById('mapping-name-input').value    = name;
-            document.getElementById('mapping-destination').value   = entry.source === 'both' ? 'both' : entry.source;
+            document.getElementById('mapping-name-input').value  = name;
+            document.getElementById('mapping-destination').value = entry.source === 'both' ? 'both' : entry.source;
 
             document.getElementById('btn-rows').innerHTML = '';
             document.getElementById('joy-rows').innerHTML = '';
             rowSeq = 0;
 
-            for (const b of (m.buttons || []))   addBtnRow(b.button, b.action);
-            for (const j of (m.joysticks || [])) addJoyRow(j.joystick, j.action);
+            if (entry.data) {
+                for (const b of (entry.data.buttons  || [])) addBtnRow(b.button, b.action);
+                for (const j of (entry.data.joysticks || [])) addJoyRow(j.joystick, j.action);
+            }
+            // If robot-only (no host data), the form starts empty — user can rebuild and save
 
             _editingMappingName = name;  // Track that we're editing this mapping
             document.getElementById('form-title').textContent = `Modify: ${name}`;

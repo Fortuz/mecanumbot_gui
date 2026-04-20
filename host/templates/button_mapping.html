@@ -277,6 +277,10 @@
             color: #fff;
             border-color: #2563eb;
         }
+        .toggle-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
         .item-loading, .item-empty {
             padding: 20px 12px;
             color: #9ca3af;
@@ -446,6 +450,15 @@
                         </div>
                     </div>
 
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label style="margin-bottom:4px;">Save to</label>
+                        <div class="source-toggle" style="margin-top:0;">
+                            <button id="save-dest-host-btn"  class="toggle-btn active" onclick="setSaveDest('host')">Host</button>
+                            <button id="save-dest-robot-btn" class="toggle-btn"        onclick="setSaveDest('robot')">Robot</button>
+                            <button id="save-dest-both-btn"  class="toggle-btn"        onclick="setSaveDest('both')">Both</button>
+                        </div>
+                    </div>
+
                     <div class="button-group">
                         <button type="button" class="btn btn-primary" id="submit-action-btn" onclick="submitAction()">
                             Save Action
@@ -479,7 +492,16 @@
 
         // ── Action source toggle (Host / Robot) ───────────────────────────────
         let _actionSource = 'host';
+        let _saveDest = 'host';         // Save destination (independent of view)
         let _editingActionName = null;  // Track the name of action being edited
+
+        function setSaveDest(dest) {
+            _saveDest = dest;
+            document.getElementById('save-dest-host-btn').classList.toggle('active',  dest === 'host');
+            document.getElementById('save-dest-robot-btn').classList.toggle('active', dest === 'robot');
+            document.getElementById('save-dest-both-btn').classList.toggle('active',  dest === 'both');
+            updateSaveTargetBadge();
+        }
 
         function setActionSource(source) {
             _actionSource = source;
@@ -494,8 +516,11 @@
         function updateSaveTargetBadge() {
             const badge = document.getElementById('save-target-badge');
             if (badge) {
-                badge.textContent = '→ ' + (_actionSource === 'host' ? 'Host' : 'Robot');
-                badge.className = 'action-badge ' + (_actionSource === 'host' ? 'button_once' : 'button_hold');
+                const label = _saveDest === 'host' ? 'Host' : _saveDest === 'robot' ? 'Robot' : 'Host + Robot';
+                const cls   = _saveDest === 'host' ? 'button_once' : _saveDest === 'robot' ? 'button_hold' : 'joystick';
+                badge.textContent = '→ ' + label;
+                badge.className = 'action-badge ' + cls;
+                badge.style.cssText = 'font-size:10px;vertical-align:middle;margin-left:6px;';
             }
         }
 
@@ -551,7 +576,7 @@
         }
 
         // Load actions on page load
-        document.addEventListener('DOMContentLoaded', loadActions);
+        document.addEventListener('DOMContentLoaded', () => { updateSaveTargetBadge(); loadActions(); });
 
         // ── Action type hint texts ────────────────────────────────────────────
         const ACTION_HINTS = {
@@ -1051,6 +1076,28 @@
             setTimeout(poll, 2000);
         })();
 
+        // ── Robot status polling ──────────────────────────────────────────────
+        let _robotOnline = false;
+
+        function _applyRobotOnlineState() {
+            // No buttons are disabled based on robot status —
+            // the API will return an appropriate error if the robot is offline.
+        }
+
+        (function pollRobotStatus() {
+            fetch('/api/robot-status')
+                .then(r => r.json())
+                .then(s => {
+                    _robotOnline = s.available === true;
+                    _applyRobotOnlineState();
+                })
+                .catch(() => {
+                    _robotOnline = false;
+                    _applyRobotOnlineState();
+                });
+            setTimeout(pollRobotStatus, 3000);
+        })();
+
         // ── Add a first row automatically ─────────────────────────────────────
         addTopicRow();
 
@@ -1076,8 +1123,8 @@
 
             const actionName  = document.getElementById('mapping_name').value.trim();
             const actionType  = document.getElementById('action_type').value;
-            // Use current source toggle as destination
-            const destination = _actionSource;
+            // Use save-destination toggle as destination
+            const destination = _saveDest;
 
             if (!actionName) { showToast('Action name is required', 'error'); return; }
 
@@ -1183,8 +1230,8 @@
 
         // ── Delete action via AJAX ────────────────────────────────────────────
         async function deleteAction(name) {
-            // Use current source toggle as destination
-            const dest = _actionSource;
+            // Use save-destination toggle as destination
+            const dest = _saveDest;
             if (!confirm(`Delete action "${name}" from ${dest}?`)) return;
             try {
                 const resp = await fetch('/api/actions/delete', {
@@ -1293,8 +1340,9 @@
             document.getElementById('submit-action-btn').textContent = 'Update Action';
             document.getElementById('cancel-modify-btn').style.display = '';
             const titleEl = document.getElementById('form-card-title');
-            const badgeHtml = `<span id="save-target-badge" class="action-badge ${_actionSource === 'host' ? 'button_once' : 'button_hold'}" style="font-size:10px;vertical-align:middle;margin-left:6px;">→ ${_actionSource === 'host' ? 'Host' : 'Robot'}</span>`;
-            titleEl.innerHTML = `Modify: ${escHtml(name)} ${badgeHtml}`;
+            updateSaveTargetBadge();
+            titleEl.innerHTML = `Modify: ${escHtml(name)} <span id="save-target-badge"></span>`;
+            updateSaveTargetBadge();
             document.getElementById('action-form').scrollIntoView({behavior:'smooth'});
         }
 
@@ -1319,8 +1367,8 @@
             document.getElementById('submit-action-btn').textContent = 'Save Action';
             document.getElementById('cancel-modify-btn').style.display = 'none';
             const titleEl = document.getElementById('form-card-title');
-            const badgeHtml = `<span id="save-target-badge" class="action-badge ${_actionSource === 'host' ? 'button_once' : 'button_hold'}" style="font-size:10px;vertical-align:middle;margin-left:6px;">→ ${_actionSource === 'host' ? 'Host' : 'Robot'}</span>`;
-            titleEl.innerHTML = `New Action ${badgeHtml}`;
+            titleEl.innerHTML = `New Action <span id="save-target-badge"></span>`;
+            updateSaveTargetBadge();
         }
     </script>
 </body>
