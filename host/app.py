@@ -336,14 +336,21 @@ class FlaskApp:
                 return jsonify([])
             return jsonify(self._db.get_all_mappings(uid))
 
-        @app.get('/api/robot/mappings')
-        def api_get_robot_mappings():
-            """Return mappings stored on the robot, including full button/joystick detail."""
+        @app.get('/api/robot/mapping-names')
+        def api_get_robot_mapping_names():
+            """Return just the names of mappings stored on the robot."""
             if self._node() is None:
-                return jsonify({"success": False, "names": [], "mappings": [], "error": "ROS2 node not running"}), 503
-            mappings, err = self._node().get_robot_mappings()
-            names = [m['name'] for m in mappings]
-            return jsonify({"success": not err, "names": names, "mappings": mappings, "error": err})
+                return jsonify({"success": False, "names": [], "error": "ROS2 node not running"}), 503
+            names, err = self._node().get_robot_mapping_names()
+            return jsonify({"success": not bool(err), "names": names, "error": err})
+
+        @app.get('/api/robot/mapping-details/<path:mapping_name>')
+        def api_get_robot_mapping_details(mapping_name):
+            """Return full button/joystick data for a single named robot mapping."""
+            if self._node() is None:
+                return jsonify({"success": False, "mapping": None, "error": "ROS2 node not running"}), 503
+            mapping, err = self._node().get_robot_mapping_details(mapping_name)
+            return jsonify({"success": not bool(err), "mapping": mapping, "error": err})
 
         @app.post('/api/mappings/save')
         def api_save_mapping():

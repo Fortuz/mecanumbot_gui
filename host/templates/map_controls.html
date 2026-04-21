@@ -156,18 +156,15 @@
             try {
                 const [hostResp, robotResp] = await Promise.all([
                     fetch('/api/mappings'),
-                    fetch('/api/robot/mappings'),
+                    fetch('/api/robot/mapping-names'),
                 ]);
                 const hostData  = await hostResp.json();
                 const robotData = await robotResp.json();
 
-                // /api/mappings returns a plain array
-                // /api/robot/mappings returns {names:[...], mappings:[{name,buttons,joysticks},...]}
-                const hostList    = Array.isArray(hostData) ? hostData : [];
-                const robotList   = robotData.mappings || [];
-                const robotByName = {};
-                for (const m of robotList) robotByName[m.name] = m;
-                const robotNames  = new Set(Object.keys(robotByName));
+                // /api/mappings returns a plain array of full mapping objects
+                // /api/robot/mapping-names returns {names:[...]}  — names only
+                const hostList   = Array.isArray(hostData) ? hostData : [];
+                const robotNames = new Set((robotData.names || []));
 
                 allMappings = {};
                 for (const m of hostList) {
@@ -175,7 +172,8 @@
                 }
                 for (const name of robotNames) {
                     if (!allMappings[name]) {
-                        allMappings[name] = { source: 'robot', data: robotByName[name] };
+                        // Robot-only: no local data yet — fetched on demand when Modify is clicked
+                        allMappings[name] = { source: 'robot', data: null };
                     }
                 }
 
@@ -428,9 +426,29 @@
         }
 
         // ── Modify (pre-fill form) ────────────────────────────────────────────
-        function modifyMapping(name) {
+        async function modifyMapping(name) {
             const entry = allMappings[name];
             if (!entry) { showToast('Mapping not found', 'warning'); return; }
+
+            let data = entry.data;
+
+            // If robot-only with no cached data, fetch details now
+            if (!data && (entry.source === 'robot' || entry.source === 'both')) {
+                showToast('Fetching mapping details from robot…', 'info');
+                try {
+                    const resp = await fetch(`/api/robot/mapping-details/${encodeURIComponent(name)}`);
+                    const result = await resp.json();
+                    if (!result.success) {
+                        showToast('Could not load mapping details: ' + (result.error || 'unknown error'), 'error');
+                        return;
+                    }
+                    data = result.mapping;
+                    entry.data = data;   // cache it
+                } catch(e) {
+                    showToast('Failed to fetch mapping details: ' + e.message, 'error');
+                    return;
+                }
+            }
 
             document.getElementById('mapping-name-input').value  = name;
             document.getElementById('mapping-destination').value = entry.source === 'both' ? 'both' : entry.source;
@@ -439,13 +457,12 @@
             document.getElementById('joy-rows').innerHTML = '';
             rowSeq = 0;
 
-            if (entry.data) {
-                for (const b of (entry.data.buttons  || [])) addBtnRow(b.button, b.action);
-                for (const j of (entry.data.joysticks || [])) addJoyRow(j.joystick, j.action);
+            if (data) {
+                for (const b of (data.buttons   || [])) addBtnRow(b.button, b.action);
+                for (const j of (data.joysticks || [])) addJoyRow(j.joystick, j.action);
             }
-            // If robot-only (no host data), the form starts empty — user can rebuild and save
 
-            _editingMappingName = name;  // Track that we're editing this mapping
+            _editingMappingName = name;
             document.getElementById('form-title').textContent = `Modify: ${name}`;
             document.getElementById('save-mapping-btn').textContent = 'Update Mapping';
             document.getElementById('cancel-edit-btn').style.display = '';

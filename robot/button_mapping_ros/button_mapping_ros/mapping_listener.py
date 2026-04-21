@@ -74,7 +74,8 @@ except ImportError:
 try:
     from mecanumbot_msgs.srv import GetRobotActions, SetLedStatus
     from mecanumbot_msgs.srv import (
-        GetMappings, SaveMapping, DeleteRobotMapping, ApplyMapping,
+        GetMappingNames, GetMappingDetails,
+        SaveMapping, DeleteRobotMapping, ApplyMapping,
         SaveRobotAction, DeleteRobotAction,
         GetRecordingSchemes, SaveRecordingScheme, DeleteRecordingScheme,
     )
@@ -142,8 +143,10 @@ class MappingListener(Node):
                 self._get_robot_actions_callback
             )
             # ── New persistent mapping/action management services ──────────────
-            self._get_mappings_srv  = self.create_service(
-                GetMappings,        '/mecanumbot/get_mappings',   self._get_mappings_callback)
+            self._get_mapping_names_srv = self.create_service(
+                GetMappingNames,    '/mecanumbot/get_mapping_names',   self._get_mapping_names_callback)
+            self._get_mapping_details_srv = self.create_service(
+                GetMappingDetails,  '/mecanumbot/get_mapping_details', self._get_mapping_details_callback)
             self._save_mapping_srv  = self.create_service(
                 SaveMapping,        '/mecanumbot/save_mapping',   self._save_mapping_callback)
             self._del_mapping_srv   = self.create_service(
@@ -162,7 +165,7 @@ class MappingListener(Node):
                 DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme', self._delete_recording_scheme_callback)
             self.get_logger().info(
                 'Services ready: /mecanumbot/get_robot_actions, '
-                'get_mappings, save_mapping, delete_mapping, apply_mapping, '
+                'get_mapping_names, get_mapping_details, save_mapping, delete_mapping, apply_mapping, '
                 'save_action, delete_action, '
                 'get_recording_schemes, save_recording_scheme, delete_recording_scheme')
 
@@ -229,23 +232,47 @@ class MappingListener(Node):
         return response
 
     # ══════════════════════════════════════════════════════════════════════════
-    # GetMappings — return all mapping names stored in robot DB
+    # GetMappingNames — return only the names of mappings stored in robot DB
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _get_mappings_callback(self, request, response):
-        self.get_logger().info('GetMappings service called')
+    def _get_mapping_names_callback(self, request, response):
+        self.get_logger().info('GetMappingNames service called')
         try:
             uid      = self._uid_for(request.user_name)
             mappings = self._db.get_all_mappings(uid)
             response.success       = True
             response.mapping_names = [m['name'] for m in mappings]
-            # Full mapping detail encoded as JSON array in message field
-            response.message       = json.dumps(mappings)
+            response.message       = ''
         except Exception as e:
             response.success       = False
             response.mapping_names = []
             response.message       = str(e)
-            self.get_logger().error(f'GetMappings error: {e}')
+            self.get_logger().error(f'GetMappingNames error: {e}')
+        return response
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # GetMappingDetails — return full button/joystick data for one mapping
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _get_mapping_details_callback(self, request, response):
+        name = request.mapping_name.strip()
+        self.get_logger().info(f'GetMappingDetails service called: "{name}"')
+        try:
+            uid     = self._uid_for(request.user_name)
+            mapping = self._db.get_mapping(uid, name)
+            if mapping is None:
+                response.success      = False
+                response.mapping_json = ''
+                response.message      = f'Mapping "{name}" not found'
+            else:
+                response.success      = True
+                response.mapping_json = json.dumps(mapping)
+                response.message      = ''
+        except Exception as e:
+            response.success      = False
+            response.mapping_json = ''
+            response.message      = str(e)
+            self.get_logger().error(f'GetMappingDetails error: {e}')
         return response
 
     # ══════════════════════════════════════════════════════════════════════════

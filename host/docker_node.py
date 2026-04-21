@@ -19,7 +19,8 @@ except ImportError:
 from mecanumbot_msgs.srv import GetRobotActions
 from mecanumbot_msgs.srv import SetLedStatus, GetLedStatus
 from mecanumbot_msgs.srv import (
-    GetMappings, SaveMapping, DeleteRobotMapping, ApplyMapping,
+    GetMappingNames, GetMappingDetails,
+    SaveMapping, DeleteRobotMapping, ApplyMapping,
     SaveRobotAction, DeleteRobotAction,
 )
 from mecanumbot_msgs.srv import (
@@ -152,7 +153,8 @@ class DockerNode(Node):
         self._get_robot_actions_client = self.create_client(GetRobotActions, '/mecanumbot/get_robot_actions')
 
         # ── New mapping/action management service clients ─────────────────────
-        self._get_mappings_client    = self.create_client(GetMappings,        '/mecanumbot/get_mappings')
+        self._get_mapping_names_client   = self.create_client(GetMappingNames,   '/mecanumbot/get_mapping_names')
+        self._get_mapping_details_client = self.create_client(GetMappingDetails, '/mecanumbot/get_mapping_details')
         self._save_mapping_client    = self.create_client(SaveMapping,        '/mecanumbot/save_mapping')
         self._del_mapping_client     = self.create_client(DeleteRobotMapping, '/mecanumbot/delete_mapping')
         self._apply_mapping_client   = self.create_client(ApplyMapping,       '/mecanumbot/apply_mapping')
@@ -599,24 +601,34 @@ class DockerNode(Node):
         except Exception:
             return None
 
-    def get_robot_mappings(self):
-        """Return (list_of_mapping_dicts, error_str).
-        Each dict: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
-        """
-        req           = GetMappings.Request()
+    def get_robot_mapping_names(self):
+        """Return (list_of_name_strings, error_str)."""
+        req           = GetMappingNames.Request()
         req.user_name = CURRENT_USER.get("name") or ""
-        result = self._call_service(self._get_mappings_client, req)
+        result = self._call_service(self._get_mapping_names_client, req)
         if result is None:
-            return [], 'GetMappings timed out — robot offline?'
+            return [], 'GetMappingNames timed out — robot offline?'
         if not result.success:
             return [], result.message
-        mappings = []
-        for mj in result.mappings_json:
-            try:
-                mappings.append(json.loads(mj))
-            except Exception:
-                pass
-        return mappings, ''
+        return list(result.mapping_names), ''
+
+    def get_robot_mapping_details(self, mapping_name: str):
+        """Return (mapping_dict, error_str).
+        mapping_dict: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
+        """
+        req              = GetMappingDetails.Request()
+        req.user_name    = CURRENT_USER.get("name") or ""
+        req.mapping_name = mapping_name
+        result = self._call_service(self._get_mapping_details_client, req)
+        if result is None:
+            return None, 'GetMappingDetails timed out — robot offline?'
+        if not result.success:
+            return None, result.message
+        try:
+            mapping = json.loads(result.mapping_json) if result.mapping_json else {}
+        except Exception:
+            mapping = {}
+        return mapping, ''
 
     def save_mapping_to_robot(self, mapping_name: str,
                               button_entries: list,
