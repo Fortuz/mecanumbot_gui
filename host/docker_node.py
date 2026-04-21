@@ -262,6 +262,8 @@ class DockerNode(Node):
                 'pos_fl': msg.pos_fl, 'pos_fr': msg.pos_fr,
                 'curr_bl': msg.curr_bl, 'curr_br': msg.curr_br,
                 'curr_fl': msg.curr_fl, 'curr_fr': msg.curr_fr,
+                'err_bl': msg.err_bl, 'err_br': msg.err_br,
+                'err_fl': msg.err_fl, 'err_fr': msg.err_fr,
                 'pos_n': msg.pos_n, 'pos_gl': msg.pos_gl, 'pos_gr': msg.pos_gr,
                 'battery_voltage': round(msg.battery_voltage, 3),
                 'imu_angular_vel_x': round(msg.imu_angular_vel_x, 4),
