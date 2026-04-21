@@ -499,10 +499,15 @@ class FlaskApp:
                 needed_names = {e[1] for e in btn_entries} | {e[1] for e in joy_entries}
                 actions_dict = {n: d for n, d in all_actions.items() if n in needed_names}
 
-            ok, msg = self._node().apply_mapping(
+            ok, msg, btn_count, joy_count = self._node().apply_mapping(
                 name, from_robot_db, btn_entries, joy_entries, actions_dict
             )
-            return jsonify({"success": ok, "message": msg})
+            return jsonify({
+                "success": ok,
+                "message": msg,
+                "loaded_button_count":   btn_count,
+                "loaded_joystick_count": joy_count,
+            })
 
         # ── Recording APIs ─────────────────────────────────────
 

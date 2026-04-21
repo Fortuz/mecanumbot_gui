@@ -556,9 +556,6 @@ class DockerNode(Node):
         """Fetch all actions stored in the robot's local DB for the given user.
         Returns (actions_dict | None, error_str | None).
         """
-       # if not ROBOT_ACTIVE:
-        #    return None, 'Robot not connected'
-
         req           = GetRobotActions.Request()
         req.user_name = user_name
 
@@ -566,16 +563,11 @@ class DockerNode(Node):
         if result is None:
             return None, 'GetRobotActions service timed out'
 
-        try:
-            resp = result
-        except Exception as e:
-            return None, str(e)
-
-        if not resp.success:
+        if not result.success:
             return None, 'Robot returned failure for GetRobotActions'
 
         actions = {}
-        for name, atype, aj in zip(resp.action_names, resp.action_types, resp.actions_json):
+        for name, atype, aj in zip(result.action_names, result.action_types, result.actions_json):
             try:
                 data = json.loads(aj)
                 actions[name] = {'type': atype, 'tuples': data.get('tuples', [])}
@@ -695,8 +687,8 @@ class DockerNode(Node):
             req.actions = self._build_action_descriptors(actions_dict or {})
         result = self._call_service(self._apply_mapping_client, req)
         if result is None:
-            return False, 'ApplyMapping timed out — robot offline?'
-        return result.success, result.message
+            return False, 'ApplyMapping timed out — robot offline?', 0, 0
+        return result.success, result.message, result.loaded_button_count, result.loaded_joystick_count
 
     def save_action_to_robot(self, name: str, action_type: str, tuples: list,
                              overwrite: bool = False):
