@@ -93,10 +93,9 @@
 
                 <div class="form-group">
                     <label for="mapping-destination">Save To</label>
-                    <select id="mapping-destination">
-                        <option value="host">Host DB only</option>
-                        <option value="robot">Robot DB only</option>
-                        <option value="both">Both (Host + Robot)</option>
+                    <select id="mapping-destination" onchange="onDestinationChange()">
+                        <option value="host">Host DB</option>
+                        <option value="robot">Robot DB</option>
                     </select>
                 </div>
 
@@ -134,9 +133,12 @@
         const JOY_ACTIONS = {{ joystick_actions | tojson }};
 
         // ── State ─────────────────────────────────────────────────────────────
-        let _editingMappingName = null;  // Track the name of mapping being edited
-        let _availableBtnActions = [];   // merged host+robot button actions
-        let _availableJoyActions = [];   // merged host+robot joystick actions
+        let _editingMappingName = null;
+        // Actions stored separately per side
+        let _hostBtnActions  = [];
+        let _hostJoyActions  = [];
+        let _robotBtnActions = [];
+        let _robotJoyActions = [];
 
         // ── Toast ─────────────────────────────────────────────────────────────
         function showToast(msg, type) {
@@ -233,76 +235,67 @@
             return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
-        // ── Load actions from host + robot ────────────────────────────────────
+        // ── Load actions from host + robot (stored separately) ────────────────
         async function loadActionsForMapping() {
-            // Seed with host actions (already injected by Flask)
-            const hostBtnActions = Object.entries(BTN_ACTIONS).map(([name, d]) => ({
-                name, type: d.type || 'button', source: 'host'
+            _hostBtnActions = Object.entries(BTN_ACTIONS).map(([name, d]) => ({
+                name, type: d.type || 'button'
             }));
-            const hostJoyActions = Object.entries(JOY_ACTIONS).map(([name]) => ({
-                name, type: 'joystick', source: 'host'
+            _hostJoyActions = Object.entries(JOY_ACTIONS).map(([name]) => ({
+                name, type: 'joystick'
             }));
 
             // Fetch robot actions (best-effort — silently skipped if offline)
-            let robotBtnActions = [];
-            let robotJoyActions = [];
             try {
                 const resp = await fetch('/api/actions?source=robot');
                 if (resp.ok) {
-                    const data = await resp.json();
-                    const actions = Array.isArray(data) ? data : [];
-                    for (const a of actions) {
-                        const entry = { name: a.name, type: a.type, source: 'robot' };
-                        if (a.type === 'joystick') robotJoyActions.push(entry);
-                        else                        robotBtnActions.push(entry);
+                    const actions = await resp.json();
+                    for (const a of (Array.isArray(actions) ? actions : [])) {
+                        if (a.type === 'joystick') _robotJoyActions.push({ name: a.name, type: a.type });
+                        else                        _robotBtnActions.push({ name: a.name, type: a.type });
                     }
                 }
             } catch (_) { /* robot offline — skip */ }
 
-            // Merge: same name on both sides → mark as 'both'
-            function merge(hostList, robotList) {
-                const hostNames  = new Set(hostList.map(a => a.name));
-                const robotNames = new Set(robotList.map(a => a.name));
-                return [
-                    ...hostList.map(a => ({ ...a, source: robotNames.has(a.name) ? 'both' : 'host' })),
-                    ...robotList.filter(a => !hostNames.has(a.name)),
-                ];
-            }
-
-            _availableBtnActions = merge(hostBtnActions, robotBtnActions);
-            _availableJoyActions = merge(hostJoyActions, robotJoyActions);
             _updateAllActionDropdowns();
+        }
+
+        // Return the correct action list based on currently selected destination
+        function _activeBtnActions() {
+            return document.getElementById('mapping-destination').value === 'robot'
+                ? _robotBtnActions : _hostBtnActions;
+        }
+        function _activeJoyActions() {
+            return document.getElementById('mapping-destination').value === 'robot'
+                ? _robotJoyActions : _hostJoyActions;
+        }
+
+        // Called when the user changes the destination dropdown
+        function onDestinationChange() {
+            // Clear all rows — actions from the other side are no longer valid
+            document.getElementById('btn-rows').innerHTML = '';
+            document.getElementById('joy-rows').innerHTML = '';
+            rowSeq = 0;
+            // (No need to call _updateAllActionDropdowns — rows are gone)
         }
 
         function _updateAllActionDropdowns() {
             document.querySelectorAll('select.action-btn-select').forEach(sel => {
                 const cur = sel.value;
-                sel.innerHTML = _buildActionOptions(_availableBtnActions, cur);
+                sel.innerHTML = _buildActionOptions(_activeBtnActions(), cur);
             });
             document.querySelectorAll('select.action-joy-select').forEach(sel => {
                 const cur = sel.value;
-                sel.innerHTML = _buildActionOptions(_availableJoyActions, cur);
+                sel.innerHTML = _buildActionOptions(_activeJoyActions(), cur);
             });
         }
 
         function _buildActionOptions(actionList, selected) {
             if (!actionList.length) return '<option value="">-- no actions available --</option>';
-
-            const bothActions  = actionList.filter(a => a.source === 'both');
-            const hostActions  = actionList.filter(a => a.source === 'host');
-            const robotActions = actionList.filter(a => a.source === 'robot');
-
-            function opts(list) {
-                return list.map(a => {
-                    const lbl = a.type === 'button_hold' ? ' (Hold)' : '';
-                    return `<option value="${escHtml(a.name)}"${a.name===selected?' selected':''}>${escHtml(a.name)}${lbl}</option>`;
-                }).join('');
-            }
-
             let html = '<option value="">-- Action --</option>';
-            if (bothActions.length)  html += `<optgroup label="Host &amp; Robot">${opts(bothActions)}</optgroup>`;
-            if (hostActions.length)  html += `<optgroup label="Host only">${opts(hostActions)}</optgroup>`;
-            if (robotActions.length) html += `<optgroup label="Robot only">${opts(robotActions)}</optgroup>`;
+            for (const a of actionList) {
+                const lbl = a.type === 'button_hold' ? ' (Hold)' : '';
+                html += `<option value="${escHtml(a.name)}"${a.name===selected?' selected':''}>${escHtml(a.name)}${lbl}</option>`;
+            }
             return html;
         }
 
@@ -331,7 +324,7 @@
             tr.id = id;
             tr.innerHTML = `
                 <td><select id="${id}-btn">${buttonOptions(btn)}</select></td>
-                <td><select id="${id}-act" class="action-btn-select">${_buildActionOptions(_availableBtnActions, action)}</select></td>
+                <td><select id="${id}-act" class="action-btn-select">${_buildActionOptions(_activeBtnActions(), action)}</select></td>
                 <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
             document.getElementById('btn-rows').appendChild(tr);
         }
@@ -342,7 +335,7 @@
             tr.id = id;
             tr.innerHTML = `
                 <td><select id="${id}-joy">${joystickOptions(joy)}</select></td>
-                <td><select id="${id}-act" class="action-joy-select">${_buildActionOptions(_availableJoyActions, action)}</select></td>
+                <td><select id="${id}-act" class="action-joy-select">${_buildActionOptions(_activeJoyActions(), action)}</select></td>
                 <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
             document.getElementById('joy-rows').appendChild(tr);
         }
@@ -409,9 +402,8 @@
 
                 if (data.success) {
                     let msg = `Mapping "${name}" saved`;
-                    if (data.saved_host && data.saved_robot) msg += ' to host + robot';
-                    else if (data.saved_host)  msg += ' to host DB';
-                    else if (data.saved_robot) msg += ' to robot DB';
+                    if (data.saved_host)  msg += ' to host DB';
+                    if (data.saved_robot) msg += ' to robot DB';
                     if (data.robot_msg) msg += ` ⚠ ${data.robot_msg}`;
                     showToast(msg, data.robot_msg ? 'warning' : 'success');
                     cancelEdit();
@@ -508,7 +500,9 @@
             }
 
             document.getElementById('mapping-name-input').value  = name;
-            document.getElementById('mapping-destination').value = entry.source === 'both' ? 'both' : entry.source;
+            // Set destination BEFORE adding rows so action dropdowns show the right side
+            const dest = entry.source === 'robot' ? 'robot' : 'host';
+            document.getElementById('mapping-destination').value = dest;
 
             document.getElementById('btn-rows').innerHTML = '';
             document.getElementById('joy-rows').innerHTML = '';
