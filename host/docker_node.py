@@ -7,7 +7,6 @@ from datetime import datetime
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
-from std_msgs.msg import String
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
 
@@ -17,34 +16,18 @@ try:
 except ImportError:
     _MSG_TO_DICT_AVAILABLE = False
 
-try:
-    from mecanumbot_msgs.srv import SyncActions, RegisterAction, SyncMappings
-    from mecanumbot_msgs.msg import (ActionTuple, ActionDescriptor,
-                                     ControllerStatus, ButtonEvent, JoystickEvent)
-    SYNC_SRV_AVAILABLE = True
-except ImportError:
-    SYNC_SRV_AVAILABLE = False
-    ControllerStatus = None
-    ButtonEvent      = None
-    JoystickEvent    = None
-    print("[DockerNode] mecanumbot_msgs not found — SyncActions/RegisterAction services disabled")
-
-try:
-    from mecanumbot_msgs.srv import SetLedStatus, GetLedStatus
-    LED_SRV_AVAILABLE = True
-except ImportError:
-    LED_SRV_AVAILABLE = False
-    SetLedStatus = None
-    GetLedStatus = None
-    print("[DockerNode] mecanumbot_msgs not found — SetLedStatus/GetLedStatus services disabled")
-
-try:
-    from mecanumbot_msgs.msg import OpenCRState
-    _OPENCR_MSG_AVAILABLE = True
-except ImportError:
-    OpenCRState = None
-    _OPENCR_MSG_AVAILABLE = False
-    print("[DockerNode] mecanumbot_msgs/OpenCRState not available — robot state topic disabled")
+from mecanumbot_msgs.srv import GetRobotActions
+from mecanumbot_msgs.srv import SetLedStatus, GetLedStatus
+from mecanumbot_msgs.srv import (
+    GetMappings, SaveMapping, DeleteRobotMapping, ApplyMapping,
+    SaveRobotAction, DeleteRobotAction,
+)
+from mecanumbot_msgs.srv import (
+    GetRecordingSchemes, SaveRecordingScheme, DeleteRecordingScheme,
+)
+from mecanumbot_msgs.msg import (ActionTuple, ActionDescriptor,
+                                 ControllerStatus, ButtonEvent, JoystickEvent,
+                                 OpenCRState)
 
 # ──────────────────────────────────────────────────────────────
 # Shared globals — written by DockerNode thread, read by Flask.
@@ -58,25 +41,14 @@ LATEST_CONTROLLER_STATUS = {
     "last_updated": None
 }
 
-LATEST_SYNC_RESULT = {
-    "attempted": False,
-    "success": None,
-    "accepted_count": 0,
-    "conflicts": [],
-    "timestamp": None
-}
+# ── Current user — set when the user submits the landing-page form ────────────
+CURRENT_USER = {"name": None, "id": None}
 
-LATEST_MAPPING_SYNC_RESULT = {
-    "attempted": False,
-    "success": None,
-    "loaded_button_count": 0,
-    "loaded_joystick_count": 0,
-    "loaded_button_names": [],
-    "loaded_joystick_names": [],
-    "timestamp": None
-}
-
-ROBOT_ACTIONS = {}
+def set_current_user(name: str, user_id: int):
+    """Called by app.py /save route once the DB user row is resolved."""
+    global CURRENT_USER
+    CURRENT_USER["name"]   = name
+    CURRENT_USER["id"]     = user_id
 
 LOG_FILE       = "/host_docs/controller_status.log"
 RECORDINGS_DIR = "/host_docs/recordings"
@@ -122,7 +94,6 @@ RECORDABLE_TOPICS = [
 ]
 
 _REC_MSG_CLASSES = {
-    'std_msgs/msg/String':     String,
     'geometry_msgs/msg/Twist': Twist,
     'sensor_msgs/msg/Joy':     Joy,
 }
@@ -141,13 +112,10 @@ try:
 except ImportError:
     pass
 
-if _OPENCR_MSG_AVAILABLE:
-    _REC_MSG_CLASSES['mecanumbot_msgs/msg/OpenCRState'] = OpenCRState
-
-if SYNC_SRV_AVAILABLE:
-    _REC_MSG_CLASSES['mecanumbot_msgs/msg/ButtonEvent']     = ButtonEvent
-    _REC_MSG_CLASSES['mecanumbot_msgs/msg/JoystickEvent']   = JoystickEvent
-    _REC_MSG_CLASSES['mecanumbot_msgs/msg/ControllerStatus'] = ControllerStatus
+_REC_MSG_CLASSES['mecanumbot_msgs/msg/OpenCRState']      = OpenCRState
+_REC_MSG_CLASSES['mecanumbot_msgs/msg/ButtonEvent']      = ButtonEvent
+_REC_MSG_CLASSES['mecanumbot_msgs/msg/JoystickEvent']    = JoystickEvent
+_REC_MSG_CLASSES['mecanumbot_msgs/msg/ControllerStatus'] = ControllerStatus
 
 
 class DockerNode(Node):
@@ -157,10 +125,8 @@ class DockerNode(Node):
     Two responsibilities:
     1. Subscribe to /xbox_controller/connection_status and update
        LATEST_CONTROLLER_STATUS in-process for the Flask UI to display.
-    2. On startup, read all actions from the host database and push them to
-       the robot via the /mecanumbot/sync_actions ROS2 service.
-       The service response is stored in LATEST_SYNC_RESULT so the Flask UI
-       can report conflicts to the user.
+    2. Provide service clients to interact with the robot (GetRobotActions,
+       SaveRobotAction, ApplyMapping, etc.) for the Flask UI.
     """
 
     def __init__(self, db):
@@ -168,56 +134,80 @@ class DockerNode(Node):
         self._db = db
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
-        if SYNC_SRV_AVAILABLE:
-            self.create_subscription(
-                ControllerStatus,
-                '/xbox_controller/connection_status',
-                self._status_callback,
-                10
-            )
-        else:
-            self.create_subscription(
-                String,
-                '/xbox_controller/connection_status',
-                self._status_callback_str,
-                10
-            )
+        self.create_subscription(
+            ControllerStatus,
+            '/xbox_controller/connection_status',
+            self._status_callback,
+            10
+        )
         self.get_logger().info(
             'Docker Node started — subscribed to /xbox_controller/connection_status')
         self._write_log("=== Docker Node Started ===")
         self._write_log(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-        self._initial_sync_timer = self.create_timer(3.0, self._initial_sync)
-        self._sync_done = False
-
         self._last_opencr_time   = None
-        self._robot_sync_lock    = threading.Lock()
         self._robot_gone_timeout = 8.0
         self.create_timer(5.0, self._robot_watchdog)
 
-        if SYNC_SRV_AVAILABLE:
-            self._register_client    = self.create_client(RegisterAction, '/mecanumbot/register_action')
-            self._sync_client        = self.create_client(SyncActions,    '/mecanumbot/sync_actions')
-            self._sync_mappings_client = self.create_client(SyncMappings, '/mecanumbot/sync_mappings')
-        else:
-            self._register_client      = None
-            self._sync_client          = None
-            self._sync_mappings_client = None
+        self._get_robot_actions_client = self.create_client(GetRobotActions, '/mecanumbot/get_robot_actions')
 
-        if LED_SRV_AVAILABLE:
-            self._led_set_client = self.create_client(SetLedStatus, 'mecanumbot/set_led_status')
-            self._led_get_client = self.create_client(GetLedStatus, 'mecanumbot/get_led_status')
-        else:
-            self._led_set_client = None
-            self._led_get_client = None
+        # ── New mapping/action management service clients ─────────────────────
+        self._get_mappings_client    = self.create_client(GetMappings,        '/mecanumbot/get_mappings')
+        self._save_mapping_client    = self.create_client(SaveMapping,        '/mecanumbot/save_mapping')
+        self._del_mapping_client     = self.create_client(DeleteRobotMapping, '/mecanumbot/delete_mapping')
+        self._apply_mapping_client   = self.create_client(ApplyMapping,       '/mecanumbot/apply_mapping')
+        self._save_action_client     = self.create_client(SaveRobotAction,    '/mecanumbot/save_action')
+        self._del_action_client      = self.create_client(DeleteRobotAction,  '/mecanumbot/delete_action')
 
+        self._get_schemes_client = self.create_client(GetRecordingSchemes,   '/mecanumbot/get_recording_schemes')
+        self._save_scheme_client = self.create_client(SaveRecordingScheme,   '/mecanumbot/save_recording_scheme')
+        self._del_scheme_client  = self.create_client(DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme')
+
+        self._led_set_client = self.create_client(SetLedStatus, '/set_led_status')
+        self._led_get_client = self.create_client(GetLedStatus, '/get_led_status')
         self._rec_subs     = {}
         self._rec_files    = {}
         self._rec_file     = None
         self._rec_led_file = None   # distinct file for LED state when selected
 
-        if _OPENCR_MSG_AVAILABLE:
-            self.create_subscription(OpenCRState, 'mecanumbot/opencr_state', self._opencr_callback, 10)
+        # ── Thread-safe subscription queue ────────────────────────────────────
+        # create_subscription / destroy_subscription must be called from the
+        # executor thread, not from Flask request threads.  We enqueue work
+        # here and flush it on the executor thread via a fast timer.
+        self._sub_create_queue  = []   # list of (msg_class, topic, callback)
+        self._sub_destroy_queue = []   # list of Subscription objects
+        self._sub_queue_lock    = threading.Lock()
+        self.create_timer(0.05, self._flush_sub_queue)   # 50 ms flush interval
+
+        # Executor reference — set by _start_docker_node after creation.
+        self._executor = None
+
+        self.create_subscription(OpenCRState, '/opencr_state', self._opencr_callback, 10)
+
+    # ── Subscription queue flush (runs on executor thread) ───────────────────
+
+    def _flush_sub_queue(self):
+        """Timer callback — safe to create/destroy subscriptions here because
+        this runs on the ROS2 executor thread, not a Flask request thread."""
+        with self._sub_queue_lock:
+            to_create  = list(self._sub_create_queue);  self._sub_create_queue.clear()
+            to_destroy = list(self._sub_destroy_queue); self._sub_destroy_queue.clear()
+
+        for sub in to_destroy:
+            try:
+                self.destroy_subscription(sub)
+            except Exception as e:
+                self.get_logger().error(f'destroy_subscription error: {e}')
+
+        for msg_class, topic, callback in to_create:
+            try:
+                sub = self.create_subscription(msg_class, topic, callback, 10)
+                self._rec_subs[topic] = sub
+                safe = topic.lstrip('/').replace('/', '_')
+                self.get_logger().info(f'Recording: subscribed to {topic} → {safe}.txt')
+            except Exception as e:
+                self.get_logger().error(f'create_subscription error for {topic}: {e}')
+
 
     # ── Controller status ─────────────────────────────────────────────────────
 
@@ -240,21 +230,6 @@ class DockerNode(Node):
         except Exception as e:
             self.get_logger().error(f'Status callback error: {e}')
 
-    def _status_callback_str(self, msg):
-        """Fallback: parse connection status from a JSON String message."""
-        global LATEST_CONTROLLER_STATUS
-        try:
-            data = json.loads(msg.data)
-            LATEST_CONTROLLER_STATUS = {
-                "connected":             data.get('connected', False),
-                "controller_type":       data.get('controller_type', 'Unknown'),
-                "time_since_last_input": data.get('time_since_last_input', 0),
-                "timestamp":             data.get('timestamp', 0),
-                "last_updated":          datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-        except Exception as e:
-            self.get_logger().error(f'Status callback (str) error: {e}')
-
     def _write_log(self, message):
         try:
             with open(LOG_FILE, 'a') as f:
@@ -275,15 +250,7 @@ class DockerNode(Node):
         if not ROBOT_ACTIVE:
             ROBOT_ACTIVE = True
             self.get_logger().info(
-                'Robot came online (/opencr_state received). Triggering action re-sync …')
-            if self._robot_sync_lock.acquire(blocking=False):
-                def _do_resync():
-                    try:
-                        self.sync_actions_to_robot()
-                        self.sync_mappings_to_robot()
-                    finally:
-                        self._robot_sync_lock.release()
-                threading.Thread(target=_do_resync, daemon=True).start()
+                'Robot came online (/opencr_state received).')
 
         try:
             state = {
@@ -336,20 +303,20 @@ class DockerNode(Node):
             self.get_logger().error(f'Cannot open session file: {e}')
             return ''
 
-        sf.write(f"=== MecanumBot Recording Session ===\n")
+        sf.write("=== MecanumBot Recording Session ===\n")
         sf.write(f"User      : {user_name}\n")
         sf.write(f"Started   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         sf.write(f"Topics    : {', '.join(topics)}\n")
-        sf.write(f"{'=' * 40}\n\n")
+        sf.write("=" * 40 + "\n\n")
 
         try:
-            all_actions       = self._db.get_all_actions()
-            button_mappings   = self._db.get_all_button_mappings()
-            joystick_mappings = self._db.get_all_joystick_mappings()
+            uid = CURRENT_USER.get("id")
+            all_actions = self._db.get_all_actions(uid) if uid is not None else {}
+            # Snapshot of named mappings (new schema)
+            all_mappings = self._db.get_all_mappings(uid) if uid is not None else []
         except Exception as e:
             all_actions = {}
-            button_mappings = {}
-            joystick_mappings = {}
+            all_mappings = []
             sf.write(f"[WARNING] Could not read DB snapshot: {e}\n\n")
 
         sf.write(f"--- Actions ({len(all_actions)}) ---\n")
@@ -368,14 +335,11 @@ class DockerNode(Node):
                     )
         sf.write("\n")
 
-        sf.write(f"--- Button Mappings ({len(button_mappings)}) ---\n")
-        for btn, mapping in button_mappings.items():
-            sf.write(f"  {btn} → {mapping.get('action', '?')}  (mode={mapping.get('trigger_mode', '?')})\n")
-        sf.write("\n")
-
-        sf.write(f"--- Joystick Mappings ({len(joystick_mappings)}) ---\n")
-        for joy, action in joystick_mappings.items():
-            sf.write(f"  {joy} → {action}\n")
+        sf.write(f"--- Mappings ({len(all_mappings)}) ---\n")
+        for m in all_mappings:
+            btns = ', '.join(f"{b['button']}→{b['action']}" for b in m.get('buttons', []))
+            joys = ', '.join(f"{j['joystick']}→{j['action']}" for j in m.get('joysticks', []))
+            sf.write(f"  [{m.get('name','?')}]  buttons: {btns or 'none'}  joysticks: {joys or 'none'}\n")
         sf.write("\n")
         sf.flush()
 
@@ -394,9 +358,9 @@ class DockerNode(Node):
                 led_path = os.path.join(session_dir, 'led_state.txt')
                 try:
                     lf = open(led_path, 'w', encoding='utf-8')
-                    lf.write(f"# source   : set_led_status service (polled on each LED query)\n")
+                    lf.write("# source   : set_led_status service (polled on each LED query)\n")
                     lf.write(f"# started  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    lf.write(f"# {'─' * 36}\n")
+                    lf.write("# " + "─" * 36 + "\n")
                     # Write initial snapshot if we already have a cached state
                     with _led_lock:
                         snap = LATEST_LED_STATE
@@ -437,10 +401,11 @@ class DockerNode(Node):
                     f'Recording: no message class for {entry["msg_type"]} — skipping {topic}')
                 self._rec_files.pop(topic, None)
                 continue
-            sub = self.create_subscription(msg_class, topic, self._make_rec_callback(topic), 10)
-            self._rec_subs[topic] = sub
-            self.get_logger().info(
-                f'Recording: subscribed to {topic} [{entry["msg_type"]}] → {safe_topic}.txt')
+            # Enqueue — actual create_subscription happens on the executor thread
+            with self._sub_queue_lock:
+                self._sub_create_queue.append(
+                    (msg_class, topic, self._make_rec_callback(topic))
+                )
 
         RECORDING_STATE = {
             'active':     True,
@@ -455,10 +420,13 @@ class DockerNode(Node):
     def stop_recording(self):
         global RECORDING_STATE
 
-        for topic, sub in self._rec_subs.items():
-            self.destroy_subscription(sub)
-            self.get_logger().info(f'Recording: unsubscribed from {topic}')
+        # Enqueue all active subscriptions for destruction on the executor thread
+        with self._sub_queue_lock:
+            self._sub_destroy_queue.extend(self._rec_subs.values())
+        logged = list(self._rec_subs.keys())
         self._rec_subs = {}
+        for topic in logged:
+            self.get_logger().info(f'Recording: unsubscribed from {topic}')
 
         for topic, tf in self._rec_files.items():
             try:
@@ -538,44 +506,6 @@ class DockerNode(Node):
         except Exception as e:
             self.get_logger().error(f'record_led_command write error: {e}')
 
-    def record_sync_result(self, actions_sent: list, result: dict):
-        if not self._rec_file:
-            return
-        try:
-            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self._rec_file.write(f"[{ts}] SYNC TO ROBOT\n")
-            self._rec_file.write(f"    Actions sent : {len(actions_sent)}\n")
-            self._rec_file.write(f"    Success      : {result.get('success')}\n")
-            self._rec_file.write(f"    Accepted     : {result.get('accepted_count', 0)}\n")
-            conflicts = result.get('conflicts', [])
-            if conflicts:
-                self._rec_file.write(f"    Conflicts    : {len(conflicts)}\n")
-                for c in conflicts:
-                    self._rec_file.write(
-                        f"      - {c.get('name', '?')} [{c.get('category', '?')}]: {c.get('reason', '?')}\n")
-            else:
-                self._rec_file.write(f"    Conflicts    : none\n")
-            self._rec_file.write(f"    Actions sent detail:\n")
-            for a in actions_sent:
-                # actions_sent is a list of ActionDescriptor ROS2 message objects
-                self._rec_file.write(f"      [{a.action_type}] {a.name}\n")
-                for t in a.tuples:
-                    if t.publish_type == 'service':
-                        self._rec_file.write(
-                            f"        service={t.service_name}  msg={t.message}\n"
-                        )
-                    else:
-                        self._rec_file.write(
-                            f"        topic={t.topic}  msg={t.message}"
-                            f"  type={t.message_type}"
-                            f"  scale=({t.scale_x}, {t.scale_y})"
-                            f"  offset=({t.offset_x}, {t.offset_y})\n"
-                        )
-            self._rec_file.write("\n")
-            self._rec_file.flush()
-        except Exception as e:
-            self.get_logger().error(f'record_sync_result write error: {e}')
-
     def _make_rec_callback(self, topic: str):
         def _callback(msg):
             tf = self._rec_files.get(topic)
@@ -598,33 +528,10 @@ class DockerNode(Node):
                 self.get_logger().error(f'Recording write error ({topic}): {e}')
         return _callback
 
-    # ── Action sync ───────────────────────────────────────────────────────────
-
-    def _initial_sync(self):
-        if self._sync_done:
-            return
-        if not SYNC_SRV_AVAILABLE:
-            self._sync_done = True
-            self._initial_sync_timer.cancel()
-            return
-        self._sync_done = True
-        self._initial_sync_timer.cancel()
-        self.get_logger().info('Running initial action sync to robot …')
-        if not self._robot_sync_lock.acquire(blocking=False):
-            self.get_logger().info(
-                '_initial_sync: sync already in progress (robot came online simultaneously) — skipping')
-            return
-        # Run sync in a plain thread so the executor stays free to process the response
-        def _do_sync():
-            try:
-                self.sync_actions_to_robot()
-                self.sync_mappings_to_robot()
-            finally:
-                self._robot_sync_lock.release()
-        threading.Thread(target=_do_sync, daemon=True).start()
+    # ── Robot watchdog ────────────────────────────────────────────────────────
 
     def _robot_watchdog(self):
-        global ROBOT_ACTIVE
+        global ROBOT_ACTIVE, LATEST_CONTROLLER_STATUS
         if self._last_opencr_time is None:
             return
         elapsed = time.monotonic() - self._last_opencr_time
@@ -633,220 +540,175 @@ class DockerNode(Node):
             self.get_logger().warn(
                 f'Robot went offline (no /opencr_state for {elapsed:.1f} s). '
                 'Will re-sync when it comes back.')
-
-    def sync_actions_to_robot(self):
-        global LATEST_SYNC_RESULT, ROBOT_ACTIONS
-
-        if not SYNC_SRV_AVAILABLE:
-            self.get_logger().warn('SyncActions service type not available — skipping sync')
-            LATEST_SYNC_RESULT = {
-                "attempted": True, "success": False, "accepted_count": 0,
-                "conflicts": [{"name": "", "category": "",
-                               "reason": "mecanumbot_msgs not installed in Docker"}],
-                "timestamp": datetime.now().isoformat()
+            # Mark the controller as disconnected too — the robot is the
+            # only source of controller status, so if the robot is gone the
+            # controller status is stale and meaningless.
+            LATEST_CONTROLLER_STATUS = {
+                **LATEST_CONTROLLER_STATUS,
+                "connected":             False,
+                "time_since_last_input": elapsed,
+                "last_updated":          datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             }
-            return
 
-        try:
-            all_actions = self._db.get_all_actions()
-        except Exception as e:
-            self.get_logger().error(f'Failed to read host DB: {e}')
-            LATEST_SYNC_RESULT = {
-                "attempted": True, "success": False, "accepted_count": 0,
-                "conflicts": [{"name": "", "category": "",
-                               "reason": f"Host DB read error: {e}"}],
-                "timestamp": datetime.now().isoformat()
-            }
-            return
+    def get_robot_actions(self, user_name: str) -> tuple:
+        """Fetch all actions stored in the robot's local DB for the given user.
+        Returns (actions_dict | None, error_str | None).
+        """
+       # if not ROBOT_ACTIVE:
+        #    return None, 'Robot not connected'
 
-        if not all_actions:
-            self.get_logger().info('No actions in host DB — nothing to sync')
-            # Don't mark as "attempted" — the robot was never contacted.
-            # Badges should stay "⊘ Not synced" rather than "✓ Synced".
-            LATEST_SYNC_RESULT = {
-                "attempted": False, "success": None,
-                "accepted_count": 0, "conflicts": [],
-                "timestamp": datetime.now().isoformat()
-            }
-            self.record_sync_result([], LATEST_SYNC_RESULT)
-            return
+        req           = GetRobotActions.Request()
+        req.user_name = user_name
 
-        actions_list = []
-        for name, data in all_actions.items():
-            desc             = ActionDescriptor()
-            desc.name        = name
-            desc.action_type = data.get("type", "button_once")
-            desc.tuples      = []
-            for t in data.get("tuples", []):
-                at              = ActionTuple()
-                at.topic        = t[0]
-                at.message      = t[1]
-                at.message_type = t[2] if len(t) > 2 else "std_msgs/msg/String"
-                at.scale_x      = float(t[3]) if len(t) > 3 else 1.0
-                at.scale_y      = float(t[4]) if len(t) > 4 else 1.0
-                at.offset_x     = float(t[5]) if len(t) > 5 else 0.0
-                at.offset_y     = float(t[6]) if len(t) > 6 else 0.0
-                at.publish_type = t[7] if len(t) > 7 else "topic"
-                at.service_name = t[8] if len(t) > 8 else ""
-                desc.tuples.append(at)
-            actions_list.append(desc)
-
-        self.get_logger().info(
-            f'Calling /mecanumbot/sync_actions with {len(actions_list)} actions …')
-
-        req         = SyncActions.Request()
-        req.actions = actions_list
-        future = self._sync_client.call_async(req)
-
-        elapsed = 0.0
-        timeout = 15.0
-        poll    = 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                self.get_logger().warn('SyncActions timed out — robot not running or mecanumbot_msgs not built there')
-                LATEST_SYNC_RESULT = {
-                    "attempted": True, "success": False, "accepted_count": 0,
-                    "conflicts": [{"name": "", "category": "",
-                                   "reason": "Service /mecanumbot/sync_actions not reachable. "
-                                             "Is the robot running and is mecanumbot_msgs built?"}],
-                    "timestamp": datetime.now().isoformat()
-                }
-                self.record_sync_result(actions_list, LATEST_SYNC_RESULT)
-                return
-            time.sleep(poll)
-            elapsed += poll
-
-        if future.result() is None:
-            self.get_logger().error('SyncActions call timed out or failed')
-            LATEST_SYNC_RESULT = {
-                "attempted": True, "success": False, "accepted_count": 0,
-                "conflicts": [{"name": "", "category": "", "reason": "Service call timed out"}],
-                "timestamp": datetime.now().isoformat()
-            }
-            self.record_sync_result(actions_list, LATEST_SYNC_RESULT)
-            return
-
-        result = future.result()
-        conflicts = [
-            {
-                "name":     result.conflict_names[i],
-                "category": "",
-                "reason":   result.conflict_reasons[i] if i < len(result.conflict_reasons) else ''
-            }
-            for i in range(len(result.conflict_names))
-        ]
-
-        ROBOT_ACTIONS = {
-            desc.name: {
-                'type':   desc.action_type,
-                'tuples': [(t.topic, t.message, t.message_type)
-                           for t in desc.tuples]
-            }
-            for desc in result.robot_actions
-        }
-
-        LATEST_SYNC_RESULT = {
-            "attempted":      True,
-            "success":        result.success,
-            "accepted_count": result.accepted_count,
-            "conflicts":      conflicts,
-            "timestamp":      datetime.now().isoformat()
-        }
-        self.record_sync_result(actions_list, LATEST_SYNC_RESULT)
-
-        if result.success:
-            self.get_logger().info(f'Sync OK — {result.accepted_count} actions accepted by robot')
-        else:
-            self.get_logger().warn(
-                f'Sync completed with {len(conflicts)} conflict(s): '
-                + ', '.join(c["name"] for c in conflicts))
-
-    def sync_mappings_to_robot(self):
-        global LATEST_MAPPING_SYNC_RESULT
-
-        if not SYNC_SRV_AVAILABLE:
-            self.get_logger().warn('SyncMappings service type not available — skipping mapping sync')
-            LATEST_MAPPING_SYNC_RESULT = {
-                "attempted": True, "success": False,
-                "loaded_button_count": 0, "loaded_joystick_count": 0,
-                "loaded_button_names": [], "loaded_joystick_names": [],
-                "timestamp": datetime.now().isoformat()
-            }
-            return
-
-        try:
-            button_mappings   = self._db.get_all_button_mappings()
-            joystick_mappings = self._db.get_all_joystick_mappings()
-        except Exception as e:
-            self.get_logger().error(f'SyncMappings: failed to read host DB: {e}')
-            LATEST_MAPPING_SYNC_RESULT = {
-                "attempted": True, "success": False,
-                "loaded_button_count": 0, "loaded_joystick_count": 0,
-                "loaded_button_names": [], "loaded_joystick_names": [],
-                "timestamp": datetime.now().isoformat()
-            }
-            return
-
-        req = SyncMappings.Request()
-        req.button_names   = list(button_mappings.keys())
-        req.action_names   = [v['action']       for v in button_mappings.values()]
-        req.trigger_modes  = [v['trigger_mode']  for v in button_mappings.values()]
-        req.joystick_names         = list(joystick_mappings.keys())
-        req.joystick_action_names  = list(joystick_mappings.values())
-
-        self.get_logger().info(
-            f'Calling /mecanumbot/sync_mappings with '
-            f'{len(req.button_names)} button mapping(s), '
-            f'{len(req.joystick_names)} joystick mapping(s) …')
-
-        future = self._sync_mappings_client.call_async(req)
-
-        elapsed = 0.0
-        timeout = 15.0
-        poll    = 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                self.get_logger().warn('SyncMappings timed out — robot offline?')
-                LATEST_MAPPING_SYNC_RESULT = {
-                    "attempted": True, "success": False,
-                    "loaded_button_count": 0, "loaded_joystick_count": 0,
-                    "loaded_button_names": [], "loaded_joystick_names": [],
-                    "timestamp": datetime.now().isoformat()
-                }
-                return
-            time.sleep(poll)
-            elapsed += poll
-
-        result = future.result()
+        result = self._call_service(self._get_robot_actions_client, req, timeout=5.0)
         if result is None:
-            self.get_logger().error('SyncMappings call returned None')
-            LATEST_MAPPING_SYNC_RESULT = {
-                "attempted": True, "success": False,
-                "loaded_button_count": 0, "loaded_joystick_count": 0,
-                "loaded_button_names": [], "loaded_joystick_names": [],
-                "timestamp": datetime.now().isoformat()
-            }
-            return
+            return None, 'GetRobotActions service timed out'
 
-        LATEST_MAPPING_SYNC_RESULT = {
-            "attempted":            True,
-            "success":              result.success,
-            "loaded_button_count":  result.loaded_button_count,
-            "loaded_joystick_count": result.loaded_joystick_count,
-            "loaded_button_names":  list(result.loaded_button_names),
-            "loaded_joystick_names": list(result.loaded_joystick_names),
-            "timestamp":            datetime.now().isoformat()
-        }
+        try:
+            resp = result
+        except Exception as e:
+            return None, str(e)
 
-        self.get_logger().info(
-            f'SyncMappings OK — {result.loaded_button_count} button(s), '
-            f'{result.loaded_joystick_count} joystick(s) loaded on robot')
+        if not resp.success:
+            return None, 'Robot returned failure for GetRobotActions'
 
-    def register_action_with_robot(self, name, action_type, tuples):
-        if not SYNC_SRV_AVAILABLE:
-            self.get_logger().warn('RegisterAction: mecanumbot_msgs not available — cannot validate')
-            return False, 'Robot interface (mecanumbot_msgs) is not available in this environment.'
+        actions = {}
+        for name, atype, aj in zip(resp.action_names, resp.action_types, resp.actions_json):
+            try:
+                data = json.loads(aj)
+                actions[name] = {'type': atype, 'tuples': data.get('tuples', [])}
+            except Exception:
+                actions[name] = {'type': atype, 'tuples': []}
 
+        return actions, None
+
+    # ── New mapping/action management services ────────────────────────────────
+
+    def _call_service(self, client, request, timeout=15.0):
+        """Generic helper: call a service client and return (result | None)."""
+        event  = threading.Event()
+        future = client.call_async(request)
+        future.add_done_callback(lambda _: event.set())
+        # If the future completed before the callback was registered, set manually
+        if future.done():
+            event.set()
+        if not event.wait(timeout=timeout):
+            return None
+        try:
+            return future.result()
+        except Exception:
+            return None
+
+    def get_robot_mappings(self):
+        """Return (list_of_mapping_dicts, error_str).
+        Each dict: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
+        """
+        req           = GetMappings.Request()
+        req.user_name = CURRENT_USER.get("name") or ""
+        result = self._call_service(self._get_mappings_client, req)
+        if result is None:
+            return [], 'GetMappings timed out — robot offline?'
+        if not result.success:
+            return [], result.message
+        mappings = []
+        for mj in result.mappings_json:
+            try:
+                mappings.append(json.loads(mj))
+            except Exception:
+                pass
+        return mappings, ''
+
+    def save_mapping_to_robot(self, mapping_name: str,
+                              button_entries: list,
+                              joystick_entries: list,
+                              actions_dict: dict,
+                              overwrite: bool = False):
+        """
+        Save a named mapping to the robot's DB.
+
+        actions_dict: {name: {type, tuples}} — only actions referenced by
+        this mapping that the robot may not already have.
+        button_entries:   [(btn, action_name, trigger_mode), ...]
+        joystick_entries: [(joy, action_name), ...]
+        overwrite: if False and mapping exists, returns conflict error
+        Returns (success, message).
+        """
+        req              = SaveMapping.Request()
+        req.user_name    = CURRENT_USER.get("name") or ""
+        req.mapping_name = mapping_name
+        req.overwrite    = overwrite
+        req.button_names         = [e[0] for e in button_entries]
+        req.button_action_names  = [e[1] for e in button_entries]
+        req.button_trigger_modes = [e[2] for e in button_entries]
+        req.joystick_names         = [e[0] for e in joystick_entries]
+        req.joystick_action_names  = [e[1] for e in joystick_entries]
+        req.actions = self._build_action_descriptors(actions_dict)
+
+        result = self._call_service(self._save_mapping_client, req)
+        if result is None:
+            return False, 'SaveMapping timed out — robot offline?'
+        return result.success, result.message
+
+    def delete_robot_mapping(self, mapping_name: str):
+        """Delete a mapping from the robot's DB. Returns (success, message)."""
+        req              = DeleteRobotMapping.Request()
+        req.user_name    = CURRENT_USER.get("name") or ""
+        req.mapping_name = mapping_name
+        result           = self._call_service(self._del_mapping_client, req)
+        if result is None:
+            return False, 'DeleteRobotMapping timed out — robot offline?'
+        return result.success, result.message
+
+    def apply_mapping(self, mapping_name: str,
+                      from_robot_db: bool,
+                      button_entries: list = None,
+                      joystick_entries: list = None,
+                      actions_dict: dict = None):
+        """
+        Activate a named mapping on the robot.
+        If from_robot_db=True the robot loads it from its own DB.
+        Otherwise the host sends the full data.
+        Returns (success, message).
+        """
+        req                = ApplyMapping.Request()
+        req.user_name      = CURRENT_USER.get("name") or ""
+        req.mapping_name   = mapping_name
+        req.from_robot_db  = from_robot_db
+        if not from_robot_db:
+            req.button_names         = [e[0] for e in (button_entries or [])]
+            req.button_action_names  = [e[1] for e in (button_entries or [])]
+            req.button_trigger_modes = [e[2] for e in (button_entries or [])]
+            req.joystick_names         = [e[0] for e in (joystick_entries or [])]
+            req.joystick_action_names  = [e[1] for e in (joystick_entries or [])]
+            req.actions = self._build_action_descriptors(actions_dict or {})
+        result = self._call_service(self._apply_mapping_client, req)
+        if result is None:
+            return False, 'ApplyMapping timed out — robot offline?'
+        return result.success, result.message
+
+    def save_action_to_robot(self, name: str, action_type: str, tuples: list,
+                             overwrite: bool = False):
+        """Save a single action to the robot's DB. Returns (success, message)."""
+        req           = SaveRobotAction.Request()
+        req.user_name = CURRENT_USER.get("name") or ""
+        req.action    = self._build_action_descriptor(name, action_type, tuples)
+        req.overwrite = overwrite
+        result     = self._call_service(self._save_action_client, req)
+        if result is None:
+            return False, 'SaveRobotAction timed out — robot offline?'
+        return result.success, result.message
+
+    def delete_robot_action(self, action_name: str):
+        """Delete an action from the robot's DB. Returns (success, message)."""
+        req             = DeleteRobotAction.Request()
+        req.user_name   = CURRENT_USER.get("name") or ""
+        req.action_name = action_name
+        result          = self._call_service(self._del_action_client, req)
+        if result is None:
+            return False, 'DeleteRobotAction timed out — robot offline?'
+        return result.success, result.message
+
+    def _build_action_descriptor(self, name, action_type, tuples):
         desc             = ActionDescriptor()
         desc.name        = name
         desc.action_type = action_type
@@ -863,47 +725,64 @@ class DockerNode(Node):
             at.publish_type = t[7] if len(t) > 7 else 'topic'
             at.service_name = t[8] if len(t) > 8 else ''
             desc.tuples.append(at)
+        return desc
 
-        req        = RegisterAction.Request()
-        req.action = desc
-        future = self._register_client.call_async(req)
+    def _build_action_descriptors(self, actions_dict: dict):
+        descs = []
+        for name, data in actions_dict.items():
+            descs.append(self._build_action_descriptor(
+                name, data.get('type', 'button_once'), data.get('tuples', [])
+            ))
+        return descs
 
-        timeout = 10.0
-        elapsed = 0.0
-        poll    = 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                self.get_logger().error('RegisterAction timed out — robot offline?')
-                return False, 'Robot did not respond. Is the robot node running?'
-            time.sleep(poll)
-            elapsed += poll
+    # ── Recording scheme services ─────────────────────────────────────────────
 
-        result = future.result()
+    def get_robot_recording_schemes(self, user_name: str):
+        """Return ({name: [topics]}, error_str)."""
+        req           = GetRecordingSchemes.Request()
+        req.user_name = user_name
+        result = self._call_service(self._get_schemes_client, req)
         if result is None:
-            return False, 'Robot did not respond. Is the robot node running?'
+            return None, 'GetRecordingSchemes timed out — robot offline?'
+        if not result.success:
+            return None, result.message or 'GetRecordingSchemes returned failure'
+        schemes = {}
+        for name, topics_json in zip(result.scheme_names, result.scheme_topics_json):
+            try:
+                schemes[name] = json.loads(topics_json)
+            except Exception:
+                schemes[name] = []
+        return schemes, None
 
-        if result.success:
-            self.get_logger().info(f'RegisterAction: "{name}" accepted by robot')
-        else:
-            self.get_logger().warn(f'RegisterAction: "{name}" rejected — {result.conflict}')
-        return result.success, result.conflict
+    def save_recording_scheme_to_robot(self, scheme_name: str, topics: list,
+                                       overwrite: bool = False):
+        """Save a recording scheme to the robot's DB. Returns (success, message)."""
+        req             = SaveRecordingScheme.Request()
+        req.user_name   = CURRENT_USER.get("name") or ""
+        req.scheme_name = scheme_name
+        req.topics      = list(topics)
+        req.overwrite   = overwrite
+        result = self._call_service(self._save_scheme_client, req)
+        if result is None:
+            return False, 'SaveRecordingScheme timed out — robot offline?'
+        return result.success, result.message
+
+    def delete_robot_recording_scheme(self, scheme_name: str):
+        """Delete a recording scheme from the robot's DB. Returns (success, message)."""
+        req             = DeleteRecordingScheme.Request()
+        req.user_name   = CURRENT_USER.get("name") or ""
+        req.scheme_name = scheme_name
+        result = self._call_service(self._del_scheme_client, req)
+        if result is None:
+            return False, 'DeleteRecordingScheme timed out — robot offline?'
+        return result.success, result.message
 
     # ── LED control ───────────────────────────────────────────────────────────
 
     def get_led_status(self):
-        if not LED_SRV_AVAILABLE or self._led_get_client is None:
-            return None, 'LED service not available (mecanumbot_msgs not built)'
-        req = GetLedStatus.Request()
-        future = self._led_get_client.call_async(req)
-        elapsed, timeout, poll = 0.0, 8.0, 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                return None, 'get_led_status timed out — robot offline?'
-            time.sleep(poll)
-            elapsed += poll
-        result = future.result()
+        result = self._call_service(self._led_get_client, GetLedStatus.Request(), timeout=8.0)
         if result is None:
-            return None, 'get_led_status call returned None'
+            return None, 'get_led_status timed out — robot offline?'
         state = {
             'FL': {'mode': result.fl_mode, 'color': result.fl_color},
             'FR': {'mode': result.fr_mode, 'color': result.fr_color},
@@ -927,8 +806,6 @@ class DockerNode(Node):
         return state, ''
 
     def set_led_status(self, values):
-        if not LED_SRV_AVAILABLE or self._led_set_client is None:
-            return False, 'LED service not available (mecanumbot_msgs not built)'
         req = SetLedStatus.Request()
         req.fl_mode  = int(values['FL']['mode'])
         req.fl_color = int(values['FL']['color'])
@@ -938,16 +815,9 @@ class DockerNode(Node):
         req.bl_color = int(values['BL']['color'])
         req.br_mode  = int(values['BR']['mode'])
         req.br_color = int(values['BR']['color'])
-        future = self._led_set_client.call_async(req)
-        elapsed, timeout, poll = 0.0, 8.0, 0.05
-        while not future.done():
-            if elapsed >= timeout:
-                return False, 'set_led_status timed out — robot offline?'
-            time.sleep(poll)
-            elapsed += poll
-        result = future.result()
+        result = self._call_service(self._led_set_client, req, timeout=8.0)
         if result is None:
-            return False, 'set_led_status call returned None'
+            return False, 'set_led_status timed out — robot offline?'
         msg = getattr(result, 'message', '') or ('OK' if result.success else 'Service returned failure')
         return result.success, msg
 
@@ -960,10 +830,11 @@ def _start_docker_node(db):
     global _docker_node_instance
     try:
         rclpy.init()
-        node = DockerNode(db)
-        _docker_node_instance = node
+        node     = DockerNode(db)
         executor = MultiThreadedExecutor()
         executor.add_node(node)
+        node._executor       = executor   # give the node a back-reference for future use
+        _docker_node_instance = node
         executor.spin()
         node.destroy_node()
         rclpy.shutdown()

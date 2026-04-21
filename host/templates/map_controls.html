@@ -6,219 +6,53 @@
     <title>Map Controls - MecanumBot</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f3f4f6;
-            min-height: 100vh;
-            color: #1f2937;
-        }
-        
-        .ribbon {
-            background: #2563eb;
-            padding: 8px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f3f4f6; min-height: 100vh; color: #1f2937; }
+        .ribbon { background: #2563eb; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
         .ribbon-title { color: white; font-size: 16px; font-weight: 600; }
-        
         .user-section { display: flex; align-items: center; gap: 12px; }
-        
-        .user-badge {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-weight: 500;
-            font-size: 12px;
-            color: white;
-        }
-        
-        .back-btn {
-            background: rgba(255, 255, 255, 0.15);
-            color: white;
-            text-decoration: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-weight: 500;
-            font-size: 12px;
-            transition: all 0.15s;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        
-        .back-btn:hover { background: rgba(255, 255, 255, 0.25); }
-        
-        .toolbar {
-            background: #ffffff;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 12px 16px;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            display: flex;
-            gap: 8px;
-        }
-        
-        .tab-button {
-            background: transparent;
-            color: #6b7280;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        
-        .tab-button:hover { color: #2563eb; }
-        
-        .tab-button.active {
-            background: #eff6ff;
-            color: #2563eb;
-        }
-        
+        .user-badge { background: rgba(255,255,255,.2); padding: 4px 12px; border-radius: 4px; font-weight: 500; font-size: 12px; color: white; }
+        .back-btn { background: rgba(255,255,255,.15); color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-weight: 500; font-size: 12px; transition: all .15s; border: 1px solid rgba(255,255,255,.3); }
+        .back-btn:hover { background: rgba(255,255,255,.25); }
         .main-content { padding: 20px; max-width: 1200px; margin: 0 auto; }
-        
-        .page-header {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        
+        .page-header { background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
         .page-header h1 { font-size: 20px; color: #1f2937; margin-bottom: 8px; }
         .page-header p { font-size: 13px; color: #6b7280; }
-        
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        
         .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        
-        .card {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        
-        .card h2 {
-            font-size: 16px;
-            color: #1f2937;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
+        .card { background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+        .card h2 { font-size: 16px; color: #1f2937; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; }
         .form-group { margin-bottom: 16px; }
-        
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 6px;
-        }
-        
-        select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            font-size: 13px;
-            font-family: 'Segoe UI', sans-serif;
-            transition: border-color 0.15s;
-        }
-        
-        select:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-        
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        
-        .btn-primary {
-            background: #2563eb;
-            color: white;
-        }
-        
+        label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+        input[type=text], select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; font-family: 'Segoe UI', sans-serif; transition: border-color .15s; }
+        input[type=text]:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; }
+        .btn-primary { background: #2563eb; color: white; }
         .btn-primary:hover { background: #1e40af; }
-        
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-        
+        .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { background: #15803d; }
+        .btn-danger { background: #ef4444; color: white; }
         .btn-danger:hover { background: #dc2626; }
-        
+        .btn-warning { background: #d97706; color: white; }
+        .btn-warning:hover { background: #b45309; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
         .mapping-list { max-height: 600px; overflow-y: auto; }
-        
-        .mapping-item {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-            padding: 12px;
-            margin-bottom: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .mapping-info { flex: 1; }
-        
-        .mapping-label {
-            font-weight: 600;
-            color: #1f2937;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-        
-        .mapping-details {
-            font-size: 12px;
-            color: #6b7280;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .info-box {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 4px;
-            padding: 12px;
-            margin-bottom: 16px;
-            font-size: 12px;
-            color: #1e40af;
-        }
-
-        .sync-badge {
-            display: inline-block;
-            font-size: 11px;
-            font-weight: 500;
-            padding: 2px 7px;
-            border-radius: 3px;
-            border: 1px solid #e5e7eb;
-            margin-left: 8px;
-            vertical-align: middle;
-        }
-        .sync-badge.sync-ok      { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
-        .sync-badge.sync-fail    { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
-        .sync-badge.sync-unknown { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+        .mapping-item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; margin-bottom: 8px; }
+        .mapping-item-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .mapping-name { font-weight: 600; color: #1f2937; font-size: 14px; }
+        .mapping-source-badge { font-size: 11px; padding: 2px 8px; border-radius: 3px; font-weight: 500; }
+        .badge-host   { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .badge-robot  { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .badge-both   { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .mapping-item-actions { display: flex; gap: 6px; }
+        .mapping-details { font-size: 12px; color: #6b7280; margin-top: 6px; }
+        .assignment-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        .assignment-table th { background: #f3f4f6; padding: 6px 10px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #e5e7eb; }
+        .assignment-table td { padding: 6px 10px; border: 1px solid #e5e7eb; vertical-align: middle; }
+        .assignment-table select { padding: 4px 8px; font-size: 12px; }
+        .add-row-btn { font-size: 12px; padding: 4px 10px; }
+        .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 12px; margin-bottom: 16px; font-size: 12px; color: #1e40af; }
+        .empty-state { text-align: center; padding: 40px 0; color: #9ca3af; }
     </style>
 </head>
 <body>
@@ -226,272 +60,411 @@
         <span class="ribbon-title">🤖 MecanumBot - Map Controls</span>
         <div class="user-section">
             <div class="user-badge">👤 {{ user_name }}</div>
-            <a href="/main-dashboard?user_name={{ user_name }}" class="back-btn">← Back to Dashboard</a>
+            <a href="/main-dashboard" class="back-btn">← Back to Dashboard</a>
         </div>
     </div>
-    
-    <div class="toolbar">
-        <button class="tab-button active" onclick="switchTab('buttons', event)">🎮 Button Mappings</button>
-        <button class="tab-button" onclick="switchTab('joysticks', event)">🕹️ Analog Inputs (Joysticks & Triggers)</button>
-    </div>
-    
+
     <div class="main-content">
         <div class="page-header">
-            <h1>Map Controller to Actions</h1>
-            <p>Assign your created actions to controller buttons, joysticks, and triggers</p>
+            <h1>Controller Mappings</h1>
+            <p>Create named controller mappings and apply them to the robot. Each mapping assigns buttons and joysticks to actions.</p>
         </div>
-        
-        <!-- Button Mappings Tab -->
-        <div id="buttons-tab" class="tab-content active">
-            <div class="content-grid">
-                <div class="card">
-                    <h2>Map Button to Action</h2>
-                    <div class="info-box">
-                        <strong>Note:</strong> Button actions will use the trigger mode defined in the action (once or hold)
-                    </div>
-                    <form method="POST" action="/map-controls/save-button">
-                        <input type="hidden" name="user_name" value="{{ user_name }}">
-                        <div class="form-group">
-                            <label for="button_name">Select Button</label>
-                            <select id="button_name" name="button_name" required>
-                                <option value="">-- Select Button --</option>
-                                {% for btn in buttons %}
-                                <option value="{{ btn }}">{{ btn }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="action_name">Select Action</label>
-                            <select id="action_name" name="action_name" required>
-                                <option value="">-- Select Action --</option>
-                                {% for action_name, action_data in button_actions.items() %}
-                                <option value="{{ action_name }}">
-                                    {{ action_name }}
-                                    {% if action_data.type == 'button_hold' %}
-                                        (Hold)
-                                    {% else %}
-                                        (Once)
-                                    {% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary">Save Mapping</button>
-                    </form>
-                </div>
-                
-                <div class="card">
-                    <h2>Current Button Mappings</h2>
-                    <div class="mapping-list">
-                        {% if button_mappings %}
-                            {% for button_name, mapping_data in button_mappings.items() %}
-                            <div class="mapping-item" data-mapping-btn="{{ button_name }}">
-                                <div class="mapping-info">
-                                    <div class="mapping-label">
-                                        🎮 {{ button_name }}
-                                        <span class="sync-badge sync-unknown">⊘ Not synced</span>
-                                    </div>
-                                    <div class="mapping-details">
-                                        → {{ mapping_data.action }}
-                                        {% if mapping_data.trigger_mode == 'hold' %}
-                                            (Hold)
-                                        {% else %}
-                                            (Once)
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <form method="POST" action="/map-controls/delete-button" style="margin: 0;">
-                                    <input type="hidden" name="user_name" value="{{ user_name }}">
-                                    <input type="hidden" name="button_name" value="{{ button_name }}">
-                                    <button type="submit" class="btn btn-danger">Delete</button>
-                                </form>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div style="text-align: center; padding: 40px 0; color: #9ca3af;">
-                                <p>No button mappings configured</p>
-                            </div>
-                        {% endif %}
-                    </div>
+
+        <div class="content-grid">
+            <!-- LEFT: Mapping list -->
+            <div class="card">
+                <h2>Saved Mappings</h2>
+                <div id="mapping-list-container">
+                    <div class="empty-state"><p>Loading mappings…</p></div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Joystick Mappings Tab -->
-        <div id="joysticks-tab" class="tab-content">
-            <div class="content-grid">
-                <div class="card">
-                    <h2>Map Analog Input to Action</h2>
-                    <div class="info-box">
-                        <strong>Note:</strong> Analog inputs (joysticks and triggers) receive continuous axis values from -1.0 to 1.0
-                    </div>
-                    <form method="POST" action="/map-controls/save-joystick">
-                        <input type="hidden" name="user_name" value="{{ user_name }}">
-                        <div class="form-group">
-                            <label for="joystick_name">Select Analog Input</label>
-                            <select id="joystick_name" name="joystick_name" required>
-                                <option value="">-- Select Analog Input --</option>
-                                {% for joy in joysticks %}
-                                <option value="{{ joy }}">{{ joy }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="joy_action_name">Select Action</label>
-                            <select id="joy_action_name" name="action_name" required>
-                                <option value="">-- Select Action --</option>
-                                {% for action_name in joystick_actions.keys() %}
-                                <option value="{{ action_name }}">{{ action_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary">Save Mapping</button>
-                    </form>
+
+            <!-- RIGHT: Create / Edit form -->
+            <div class="card">
+                <h2 id="form-title">New Mapping</h2>
+                <div class="info-box">
+                    Give the mapping a name, assign buttons/joysticks to actions, choose where to save, then click <strong>Save Mapping</strong>. Use <strong>Apply</strong> from the list to load a mapping onto the robot.
                 </div>
-                
-                <div class="card">
-                    <h2>Current Analog Input Mappings</h2>
-                    <div class="mapping-list">
-                        {% if joystick_mappings %}
-                            {% for joystick_name, action_name in joystick_mappings.items() %}
-                            <div class="mapping-item" data-mapping-joy="{{ joystick_name }}">
-                                <div class="mapping-info">
-                                    <div class="mapping-label">
-                                        🕹️ {{ joystick_name }}
-                                        <span class="sync-badge sync-unknown">⊘ Not synced</span>
-                                    </div>
-                                    <div class="mapping-details">→ {{ action_name }}</div>
-                                </div>
-                                <form method="POST" action="/map-controls/delete-joystick" style="margin: 0;">
-                                    <input type="hidden" name="user_name" value="{{ user_name }}">
-                                    <input type="hidden" name="joystick_name" value="{{ joystick_name }}">
-                                    <button type="submit" class="btn btn-danger">Delete</button>
-                                </form>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <div style="text-align: center; padding: 40px 0; color: #9ca3af;">
-                                <p>No analog input mappings configured</p>
-                                <p style="font-size: 12px; margin-top: 8px;">Map joysticks or triggers to actions above</p>
-                            </div>
-                        {% endif %}
-                    </div>
+
+                <div class="form-group">
+                    <label for="mapping-name-input">Mapping Name</label>
+                    <input type="text" id="mapping-name-input" placeholder="e.g. Teleop Default">
+                </div>
+
+                <div class="form-group">
+                    <label for="mapping-destination">Save To</label>
+                    <select id="mapping-destination">
+                        <option value="host">Host DB only</option>
+                        <option value="robot">Robot DB only</option>
+                        <option value="both">Both (Host + Robot)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Button Assignments</label>
+                    <table class="assignment-table" id="btn-table">
+                        <thead><tr><th>Button</th><th>Action</th><th></th></tr></thead>
+                        <tbody id="btn-rows"></tbody>
+                    </table>
+                    <button type="button" class="btn btn-secondary add-row-btn" onclick="addBtnRow()">+ Add Button</button>
+                </div>
+
+                <div class="form-group">
+                    <label>Joystick / Trigger Assignments</label>
+                    <table class="assignment-table" id="joy-table">
+                        <thead><tr><th>Joystick</th><th>Action</th><th></th></tr></thead>
+                        <tbody id="joy-rows"></tbody>
+                    </table>
+                    <button type="button" class="btn btn-secondary add-row-btn" onclick="addJoyRow()">+ Add Joystick</button>
+                </div>
+
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button type="button" class="btn btn-primary" id="save-mapping-btn" onclick="saveMapping()">Save Mapping</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-edit-btn" style="display:none;" onclick="cancelEdit()">Cancel</button>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <script>
-        function switchTab(tabName, event) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Remove active class from all buttons
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName + '-tab').classList.add('active');
-            
-            // Highlight selected button
-            event.target.classList.add('active');
+        // ── Data injected from Flask ──────────────────────────────────────────
+        const BUTTONS   = {{ buttons  | tojson }};
+        const JOYSTICKS = {{ joysticks | tojson }};
+        const BTN_ACTIONS = {{ button_actions  | tojson }};
+        const JOY_ACTIONS = {{ joystick_actions | tojson }};
+
+        // ── State ─────────────────────────────────────────────────────────────
+        let _editingMappingName = null;  // Track the name of mapping being edited
+
+        // ── Toast ─────────────────────────────────────────────────────────────
+        function showToast(msg, type) {
+            const t = document.createElement('div');
+            const bg = type==='success'?'#dcfce7':type==='warning'?'#fef3c7':'#fee2e2';
+            const bd = type==='success'?'#16a34a':type==='warning'?'#d97706':'#dc2626';
+            t.style.cssText=`position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:6px;border:1px solid ${bd};background:${bg};font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.15);max-width:360px;`;
+            t.textContent=msg;
+            document.body.appendChild(t);
+            setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400);},4000);
         }
 
-        // ── Filter action selects to only show successfully-synced actions ─────
-        function filterActionSelects() {
-            fetch('/api/sync-status')
-                .then(r => r.json())
-                .then(data => {
-                    if (!data || !data.attempted) return;
-                    const conflictNames = new Set(
-                        (data.conflicts || []).map(c => c.name).filter(Boolean)
-                    );
-                    if (conflictNames.size === 0) return;
+        // ── Render mapping list (combined host + robot) ───────────────────────
+        let allMappings = {};   // name → {source:'host'|'robot'|'both', data?}
 
-                    ['action_name', 'joy_action_name'].forEach(selectId => {
-                        const sel = document.getElementById(selectId);
-                        if (!sel) return;
-                        Array.from(sel.options).forEach(opt => {
-                            if (opt.value && conflictNames.has(opt.value)) {
-                                opt.disabled = true;
-                                opt.title = 'Sync conflict — not available on the robot';
-                                opt.text = '⚠ ' + opt.value + ' (conflict)';
-                            }
-                        });
-                    });
-                })
-                .catch(() => {});
-        }
-        filterActionSelects();
+        async function loadMappings() {
+            const container = document.getElementById('mapping-list-container');
+            container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+            try {
+                const [hostResp, robotResp] = await Promise.all([
+                    fetch('/api/mappings'),
+                    fetch('/api/robot/mappings'),
+                ]);
+                const hostData  = await hostResp.json();
+                const robotData = await robotResp.json();
 
-        // ── Per-mapping sync status badges ────────────────────────────────────
-        function refreshMappingSyncStatus() {
-            fetch('/api/mapping-sync-status')
-                .then(r => r.json())
-                .then(data => {
-                    const badge = (cls, text) => {
-                        const b = document.createElement('span');
-                        b.className = 'sync-badge ' + cls;
-                        b.textContent = text;
-                        return b;
-                    };
+                // /api/mappings returns a plain array
+                // /api/robot/mappings returns {names:[...], mappings:[{name,buttons,joysticks},...]}
+                const hostList    = Array.isArray(hostData) ? hostData : [];
+                const robotList   = robotData.mappings || [];
+                const robotByName = {};
+                for (const m of robotList) robotByName[m.name] = m;
+                const robotNames  = new Set(Object.keys(robotByName));
 
-                    const allItems = [
-                        ...document.querySelectorAll('[data-mapping-btn]'),
-                        ...document.querySelectorAll('[data-mapping-joy]')
-                    ];
-
-                    // Remove old badges
-                    allItems.forEach(item => {
-                        const old = item.querySelector('.sync-badge');
-                        if (old) old.remove();
-                    });
-
-                    if (!data || !data.attempted) {
-                        allItems.forEach(item => {
-                            item.querySelector('.mapping-label').appendChild(
-                                badge('sync-unknown', '⊘ Not synced'));
-                        });
-                        return;
+                allMappings = {};
+                for (const m of hostList) {
+                    allMappings[m.name] = { source: robotNames.has(m.name) ? 'both' : 'host', data: m };
+                }
+                for (const name of robotNames) {
+                    if (!allMappings[name]) {
+                        allMappings[name] = { source: 'robot', data: robotByName[name] };
                     }
+                }
 
-                    if (!data.success) {
-                        allItems.forEach(item => {
-                            item.querySelector('.mapping-label').appendChild(
-                                badge('sync-fail', '⚠ Robot offline'));
-                        });
-                        return;
-                    }
-
-                    const loadedBtns = new Set(data.loaded_button_names || []);
-                    const loadedJoys = new Set(data.loaded_joystick_names || []);
-
-                    document.querySelectorAll('[data-mapping-btn]').forEach(item => {
-                        const name   = item.getAttribute('data-mapping-btn');
-                        const synced = loadedBtns.has(name);
-                        item.querySelector('.mapping-label').appendChild(
-                            badge(synced ? 'sync-ok' : 'sync-fail',
-                                  synced ? '✓ Synced' : '⊘ Not synced'));
-                    });
-                    document.querySelectorAll('[data-mapping-joy]').forEach(item => {
-                        const name   = item.getAttribute('data-mapping-joy');
-                        const synced = loadedJoys.has(name);
-                        item.querySelector('.mapping-label').appendChild(
-                            badge(synced ? 'sync-ok' : 'sync-fail',
-                                  synced ? '✓ Synced' : '⊘ Not synced'));
-                    });
-                })
-                .catch(() => {});
+                renderMappingList();
+            } catch(e) {
+                container.innerHTML = `<div class="empty-state"><p style="color:#dc2626;">Failed to load: ${escHtml(e.message)}</p></div>`;
+            }
         }
-        refreshMappingSyncStatus();
-        setInterval(refreshMappingSyncStatus, 10000);
+
+        function renderMappingList() {
+            const container = document.getElementById('mapping-list-container');
+            const names = Object.keys(allMappings);
+            if (names.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No mappings saved yet.</p></div>';
+                return;
+            }
+            let html = '<div class="mapping-list">';
+            for (const name of names) {
+                const entry = allMappings[name];
+                const srcLabel = entry.source === 'both' ? 'Host + Robot'
+                               : entry.source === 'robot' ? 'Robot' : 'Host';
+                const srcClass = entry.source === 'both' ? 'badge-both'
+                               : entry.source === 'robot' ? 'badge-robot' : 'badge-host';
+                let details = '';
+                if (entry.data) {
+                    const btns = (entry.data.buttons  || []).map(b => `${escHtml(b.button)}→${escHtml(b.action)}`).join(', ');
+                    const joys = (entry.data.joysticks || []).map(j => `${escHtml(j.joystick)}→${escHtml(j.action)}`).join(', ');
+                    if (btns) details += `<div>🎮 ${btns}</div>`;
+                    if (joys) details += `<div>🕹️ ${joys}</div>`;
+                }
+                html += `
+                <div class="mapping-item">
+                    <div class="mapping-item-header">
+                        <div>
+                            <span class="mapping-name">${escHtml(name)}</span>
+                            <span class="mapping-source-badge ${srcClass}">${srcLabel}</span>
+                        </div>
+                        <div class="mapping-item-actions">
+                            <button class="btn btn-success btn-sm" style="padding:4px 10px;font-size:12px;"
+                                    onclick='applyMapping(${JSON.stringify(name)})'>Apply</button>
+                            <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"
+                                    onclick='modifyMapping(${JSON.stringify(name)})'>Modify</button>
+                            <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;"
+                                    onclick='deleteMapping(${JSON.stringify(name)})'>Delete</button>
+                        </div>
+                    </div>
+                    ${details ? `<div class="mapping-details">${details}</div>` : ''}
+                </div>`;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ── Button row helpers ────────────────────────────────────────────────
+        let rowSeq = 0;
+
+        function btnActionOptions(selected) {
+            let o = '<option value="">-- Action --</option>';
+            for (const name of Object.keys(BTN_ACTIONS)) {
+                const t = BTN_ACTIONS[name].type || '';
+                const lbl = t === 'button_hold' ? '(Hold)' : '(Once)';
+                o += `<option value="${escHtml(name)}" ${name===selected?'selected':''}>${escHtml(name)} ${lbl}</option>`;
+            }
+            return o;
+        }
+
+        function joyActionOptions(selected) {
+            let o = '<option value="">-- Action --</option>';
+            for (const name of Object.keys(JOY_ACTIONS)) {
+                o += `<option value="${escHtml(name)}" ${name===selected?'selected':''}>${escHtml(name)}</option>`;
+            }
+            return o;
+        }
+
+        function buttonOptions(selected) {
+            let o = '<option value="">-- Button --</option>';
+            for (const b of BUTTONS) {
+                o += `<option value="${escHtml(b)}" ${b===selected?'selected':''}>${escHtml(b)}</option>`;
+            }
+            return o;
+        }
+
+        function joystickOptions(selected) {
+            let o = '<option value="">-- Joystick --</option>';
+            for (const j of JOYSTICKS) {
+                o += `<option value="${escHtml(j)}" ${j===selected?'selected':''}>${escHtml(j)}</option>`;
+            }
+            return o;
+        }
+
+        function addBtnRow(btn='', action='') {
+            const id = 'br-' + (rowSeq++);
+            const tr = document.createElement('tr');
+            tr.id = id;
+            tr.innerHTML = `
+                <td><select id="${id}-btn">${buttonOptions(btn)}</select></td>
+                <td><select id="${id}-act">${btnActionOptions(action)}</select></td>
+                <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
+            document.getElementById('btn-rows').appendChild(tr);
+        }
+
+        function addJoyRow(joy='', action='') {
+            const id = 'jr-' + (rowSeq++);
+            const tr = document.createElement('tr');
+            tr.id = id;
+            tr.innerHTML = `
+                <td><select id="${id}-joy">${joystickOptions(joy)}</select></td>
+                <td><select id="${id}-act">${joyActionOptions(action)}</select></td>
+                <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
+            document.getElementById('joy-rows').appendChild(tr);
+        }
+
+        // ── Collect form data ─────────────────────────────────────────────────
+        function collectForm() {
+            const name = document.getElementById('mapping-name-input').value.trim();
+            const dest = document.getElementById('mapping-destination').value;
+
+            const buttons = [];
+            for (const tr of document.getElementById('btn-rows').querySelectorAll('tr')) {
+                const id  = tr.id;
+                const btn = document.getElementById(id+'-btn')?.value;
+                const act = document.getElementById(id+'-act')?.value;
+                if (btn && act) buttons.push({ button: btn, action: act });
+            }
+
+            const joysticks = [];
+            for (const tr of document.getElementById('joy-rows').querySelectorAll('tr')) {
+                const id  = tr.id;
+                const joy = document.getElementById(id+'-joy')?.value;
+                const act = document.getElementById(id+'-act')?.value;
+                if (joy && act) joysticks.push({ joystick: joy, action: act });
+            }
+
+            return { name, dest, buttons, joysticks };
+        }
+
+        // ── Save mapping ──────────────────────────────────────────────────────
+        async function saveMapping(overwrite = false) {
+            const { name, dest, buttons, joysticks } = collectForm();
+            if (!name) { showToast('Mapping name is required', 'error'); return; }
+            if (buttons.length === 0 && joysticks.length === 0) {
+                showToast('Add at least one button or joystick assignment', 'error'); return;
+            }
+
+            // If editing the same mapping name, force overwrite
+            if (_editingMappingName && _editingMappingName === name) {
+                overwrite = true;
+            }
+
+            const btn = document.getElementById('save-mapping-btn');
+            btn.disabled = true; btn.textContent = 'Saving…';
+            try {
+                const payload = { name, destination: dest, buttons, joysticks };
+                if (overwrite) payload.overwrite = true;
+
+                const resp = await fetch('/api/mappings/save', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+
+                // Handle conflict (409)
+                if (resp.status === 409 && data.error && data.error.includes('already exists') && !overwrite) {
+                    btn.disabled = false;
+                    btn.textContent = _editingMappingName ? 'Update Mapping' : 'Save Mapping';
+                    if (confirm(data.error + '\n\nOverwrite the existing mapping?')) {
+                        saveMapping(true);
+                    }
+                    return;
+                }
+
+                if (data.success) {
+                    let msg = `Mapping "${name}" saved`;
+                    if (data.saved_host && data.saved_robot) msg += ' to host + robot';
+                    else if (data.saved_host)  msg += ' to host DB';
+                    else if (data.saved_robot) msg += ' to robot DB';
+                    if (data.robot_msg) msg += ` ⚠ ${data.robot_msg}`;
+                    showToast(msg, data.robot_msg ? 'warning' : 'success');
+                    cancelEdit();
+                    await loadMappings();
+                } else {
+                    showToast('Error: ' + (data.error || 'Unknown'), 'error');
+                }
+            } catch(e) {
+                showToast('Network error: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = _editingMappingName ? 'Update Mapping' : 'Save Mapping';
+            }
+        }
+
+        // ── Apply mapping to robot ────────────────────────────────────────────
+        async function applyMapping(name) {
+            const entry = allMappings[name];
+            const fromRobot = entry && (entry.source === 'robot' || entry.source === 'both');
+            const payload = { name, from_robot_db: fromRobot };
+
+            // If mapping only lives on host, include full data
+            if (!fromRobot && entry && entry.data) {
+                payload.buttons  = entry.data.buttons  || [];
+                payload.joysticks = entry.data.joysticks || [];
+            }
+
+            try {
+                const resp = await fetch('/api/mappings/apply', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast(`Mapping "${name}" applied ✓ (${data.loaded_button_count||0} buttons, ${data.loaded_joystick_count||0} joysticks)`, 'success');
+                } else {
+                    showToast('Apply failed: ' + (data.message || data.error || ''), 'error');
+                }
+            } catch(e) {
+                showToast('Network error: ' + e.message, 'error');
+            }
+        }
+
+        // ── Delete mapping ────────────────────────────────────────────────────
+        async function deleteMapping(name) {
+            const dest = prompt(
+                `Delete "${name}" from:\n  host — Host DB only\n  robot — Robot DB only\n  both — Both\n\nType: host / robot / both`,
+                allMappings[name]?.source || 'host'
+            );
+            if (!dest) return;
+            if (!confirm(`Delete mapping "${name}" from "${dest}"?`)) return;
+            try {
+                const resp = await fetch('/api/mappings/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ name, destination: dest })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast(`Mapping "${name}" deleted`, 'success');
+                    await loadMappings();
+                } else {
+                    showToast('Delete failed: ' + (data.message || data.error || ''), 'error');
+                }
+            } catch(e) {
+                showToast('Network error: ' + e.message, 'error');
+            }
+        }
+
+        // ── Modify (pre-fill form) ────────────────────────────────────────────
+        function modifyMapping(name) {
+            const entry = allMappings[name];
+            if (!entry) { showToast('Mapping not found', 'warning'); return; }
+
+            document.getElementById('mapping-name-input').value  = name;
+            document.getElementById('mapping-destination').value = entry.source === 'both' ? 'both' : entry.source;
+
+            document.getElementById('btn-rows').innerHTML = '';
+            document.getElementById('joy-rows').innerHTML = '';
+            rowSeq = 0;
+
+            if (entry.data) {
+                for (const b of (entry.data.buttons  || [])) addBtnRow(b.button, b.action);
+                for (const j of (entry.data.joysticks || [])) addJoyRow(j.joystick, j.action);
+            }
+            // If robot-only (no host data), the form starts empty — user can rebuild and save
+
+            _editingMappingName = name;  // Track that we're editing this mapping
+            document.getElementById('form-title').textContent = `Modify: ${name}`;
+            document.getElementById('save-mapping-btn').textContent = 'Update Mapping';
+            document.getElementById('cancel-edit-btn').style.display = '';
+            document.getElementById('mapping-name-input').scrollIntoView({behavior:'smooth'});
+        }
+
+        function cancelEdit() {
+            _editingMappingName = null;  // Clear edit mode
+            document.getElementById('mapping-name-input').value    = '';
+            document.getElementById('btn-rows').innerHTML  = '';
+            document.getElementById('joy-rows').innerHTML  = '';
+            rowSeq = 0;
+            document.getElementById('form-title').textContent = 'New Mapping';
+            document.getElementById('save-mapping-btn').textContent = 'Save Mapping';
+            document.getElementById('cancel-edit-btn').style.display = 'none';
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        loadMappings();
     </script>
 </body>
 </html>

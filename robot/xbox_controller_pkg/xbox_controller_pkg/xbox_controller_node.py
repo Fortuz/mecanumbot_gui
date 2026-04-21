@@ -1,13 +1,31 @@
 #!/usr/bin/env python3
 """
-Xbox 360 Controller Button Publisher Node
+Xbox 360 / Generic Controller Button Publisher Node
 
-This ROS 2 node listens to Xbox 360 controller input via the joy package
-and publishes button press events to a custom topic.
+This ROS 2 node listens to controller input via the joy package and
+publishes button press events to a custom topic.
+
+It auto-detects the controller layout from the first /joy message:
+
+  Xbox 360 wireless (xpad driver) — 8 axes, 11 buttons
+    - Axes 0-1: Left Stick (X/Y)
+    - Axes 2:   Left Trigger  (LT)  rest=+1, fully pressed=-1
+    - Axes 3-4: Right Stick (X/Y)
+    - Axes 5:   Right Trigger (RT)  rest=+1, fully pressed=-1
+    - Axes 6-7: D-Pad (left/right, down/up) as ±1 floats
+    - Buttons 0-10: A B X Y LB RB BACK START XBOX LS RS
+
+  Generic / Xbox One / PS4 / other — anything else
+    - Axes 0-1: Left Stick (X/Y)
+    - Axes 2:   Left Trigger (LT)   rest=-1, fully pressed=+1
+    - Axes 3-4: Right Stick (X/Y)
+    - Axes 5:   Right Trigger (RT)  rest=-1, fully pressed=+1
+    - D-Pad reported as BUTTONS (indices defined by GENERIC_DPAD_* constants)
+    - Buttons 0-3: A/Cross  B/Circle  X/Square  Y/Triangle
 
 Requirements:
 - ros-humble-joy package
-- Xbox 360 controller connected via wireless adapter
+- Xbox 360 wireless adapter  OR  any HID-compatible gamepad
 
 """
 
@@ -18,33 +36,56 @@ from sensor_msgs.msg import Joy
 from mecanumbot_msgs.msg import ButtonEvent, JoystickEvent, ControllerStatus
 
 
+# ── Layout fingerprint ────────────────────────────────────────────────────────
+# Xbox 360 wireless via xpad produces exactly these counts.
+_XBOX360_NUM_AXES    = 8
+_XBOX360_NUM_BUTTONS = 11
+
+# ── Generic D-Pad button indices ──────────────────────────────────────────────
+# Most generic USB gamepads, Xbox One (xpad), and DS4 (via ds4drv) report
+# D-Pad as buttons starting around index 11.  Adjust if your controller
+# differs; the layout is printed to the log on first connection.
+GENERIC_DPAD_UP    = 11
+GENERIC_DPAD_DOWN  = 12
+GENERIC_DPAD_LEFT  = 13
+GENERIC_DPAD_RIGHT = 14
+
+
 class Xbox360ControllerNode(Node):
     """
-    ROS 2 Node that processes Xbox 360 controller input and publishes button events.
+    ROS 2 Node that processes controller input and publishes button /
+    joystick events.  Supports Xbox 360 wireless (xpad layout) and
+    generic HID gamepads automatically.
     """
-    
+
+    # ── Per-layout button name tables ─────────────────────────────────────────
+    _BUTTON_NAMES_XBOX360 = {
+        0: 'A', 1: 'B', 2: 'X', 3: 'Y',
+        4: 'LB', 5: 'RB',
+        6: 'BACK', 7: 'START', 8: 'XBOX',
+        9: 'LS', 10: 'RS',
+    }
+
+    _BUTTON_NAMES_GENERIC = {
+        0: 'A', 1: 'B', 2: 'X', 3: 'Y',
+        4: 'LB', 5: 'RB',
+        6: 'BACK', 7: 'START', 8: 'HOME',
+        9: 'LS', 10: 'RS',
+        GENERIC_DPAD_UP:    'DPadUp',
+        GENERIC_DPAD_DOWN:  'DPadDown',
+        GENERIC_DPAD_LEFT:  'DPadLeft',
+        GENERIC_DPAD_RIGHT: 'DPadRight',
+    }
+
     def __init__(self):
         super().__init__('xbox360_controller_node')
-        
-        # Xbox 360 controller button mapping (standard layout)
-        # NOTE: The D-Pad is reported as axes (not buttons) by the ROS2 joy
-        # node for the Xbox 360 wireless adapter.  It is handled separately
-        # in publish_joystick_positions() via axes[6] / axes[7].
-        self.button_names = {
-            0: 'A',
-            1: 'B',
-            2: 'X',
-            3: 'Y',
-            4: 'LB',  # Left Bumper
-            5: 'RB',  # Right Bumper
-            6: 'BACK',
-            7: 'START',
-            8: 'XBOX',  # Xbox button (center)
-            9: 'LS',    # Left Stick button
-            10: 'RS'    # Right Stick button
-        }
 
-        # Track previous D-Pad axis states to emit PRESSED / RELEASED events
+        # Detected layout: None until first /joy message, then 'xbox360' or 'generic'
+        self._layout      = None
+        self._layout_name = 'Unknown'
+        self.button_names = {}
+
+        # Track previous D-Pad axis states (xbox360 layout)
         self.prev_dpad_states = {'DPadLeft': False, 'DPadRight': False,
                                  'DPadUp': False, 'DPadDown': False}
 
@@ -98,18 +139,52 @@ class Xbox360ControllerNode(Node):
         # Publish initial connection status on startup
         self.publish_connection_status()
 
+    def _detect_layout(self, msg):
+        """Called once on the first /joy message to determine controller layout."""
+        n_axes    = len(msg.axes)
+        n_buttons = len(msg.buttons)
+
+        if n_axes == _XBOX360_NUM_AXES and n_buttons == _XBOX360_NUM_BUTTONS:
+            self._layout      = 'xbox360'
+            self._layout_name = 'Xbox 360'
+            self.button_names = self._BUTTON_NAMES_XBOX360
+            self.get_logger().info(
+                f'Controller layout detected: Xbox 360 wireless '
+                f'({n_axes} axes, {n_buttons} buttons) — D-Pad via axes[6]/axes[7]')
+        else:
+            self._layout      = 'generic'
+            self._layout_name = 'Generic Controller'
+            self.button_names = self._BUTTON_NAMES_GENERIC
+            self.get_logger().info(
+                f'Controller layout detected: Generic / non-Xbox-360 '
+                f'({n_axes} axes, {n_buttons} buttons) — D-Pad via buttons '
+                f'{GENERIC_DPAD_UP}/{GENERIC_DPAD_DOWN}/'
+                f'{GENERIC_DPAD_LEFT}/{GENERIC_DPAD_RIGHT}')
+        self.get_logger().info(
+            f'Button table: {self.button_names}')
+
     def joy_callback(self, msg):
         """
         Callback function for joy messages from the controller.
-        
-        Args:
-            msg (Joy): Joy message containing button and axis states
         """
+        # ── Auto-detect layout on first message ───────────────────────────────
+        if self._layout is None:
+            self._detect_layout(msg)
+
         self.current_joy_msg = msg
         self.last_joy_time = self.get_clock().now()
 
+        # ── Generic D-Pad button indices to skip in the main loop ─────────────
+        # (they are handled as named D-Pad events, not raw BUTTON_N events)
+        generic_dpad_indices = (
+            {GENERIC_DPAD_UP, GENERIC_DPAD_DOWN, GENERIC_DPAD_LEFT, GENERIC_DPAD_RIGHT}
+            if self._layout == 'generic' else set()
+        )
+
         # Process button events (detect button presses)
         for i, button_state in enumerate(msg.buttons):
+            if i in generic_dpad_indices:
+                continue   # handled in publish_joystick_positions()
             button_name = self.button_names.get(i, f'BUTTON_{i}')
             prev_state = self.prev_button_states.get(i, 0)
             
@@ -170,7 +245,7 @@ class Xbox360ControllerNode(Node):
         
         msg = ControllerStatus()
         msg.connected              = self.controller_connected
-        msg.controller_type        = 'Xbox 360'
+        msg.controller_type        = self._layout_name
         msg.time_since_last_input  = round(time_since_last_msg, 2)
         msg.timestamp              = current_time.to_msg().sec
         self.connection_publisher.publish(msg)
@@ -178,29 +253,33 @@ class Xbox360ControllerNode(Node):
     def publish_joystick_positions(self):
         """
         Publish joystick positions as continuous events for joystick actions.
+        Handles both Xbox 360 and generic controller layouts.
         """
         if self.current_joy_msg is None:
             return
-        
-        axes = self.current_joy_msg.axes
-        
-        # Check if we have enough axes for both sticks and triggers (indices 0-5)
+
+        axes    = self.current_joy_msg.axes
+        buttons = self.current_joy_msg.buttons
+
         if len(axes) < 6:
             return
-        
-        left_x = round(axes[0], 3)
-        left_y = round(axes[1], 3)
+
+        left_x  = round(axes[0], 3)
+        left_y  = round(axes[1], 3)
         right_x = round(axes[3], 3)
         right_y = round(axes[4], 3)
 
-        # Triggers: axes[2] = LT, axes[5] = RT
-        # At rest = +1.0; fully pressed = -1.0.
-        # Normalise to 0.0 (rest) … 1.0 (fully pressed) and publish as X-only.
-        lt_raw = axes[2]
-        rt_raw = axes[5]
-        lt_val = round((1.0 - lt_raw) / 2.0, 3)   # 0.0 … 1.0
-        rt_val = round((1.0 - rt_raw) / 2.0, 3)   # 0.0 … 1.0
-        
+        # ── Trigger normalisation ─────────────────────────────────────────────
+        # Xbox 360 wireless (xpad): rest = +1.0, fully pressed = -1.0
+        # Generic / Xbox One:       rest = -1.0 (or 0 before first touch),
+        #                           fully pressed = +1.0
+        if self._layout == 'xbox360':
+            lt_val = round((1.0 - axes[2]) / 2.0, 3)   # 0.0 … 1.0
+            rt_val = round((1.0 - axes[5]) / 2.0, 3)   # 0.0 … 1.0
+        else:
+            lt_val = round((axes[2] + 1.0) / 2.0, 3)   # 0.0 … 1.0
+            rt_val = round((axes[5] + 1.0) / 2.0, 3)   # 0.0 … 1.0
+
         # Publish Left Stick event if not centered (deadzone 0.05)
         if abs(left_x) > 0.05 or abs(left_y) > 0.05:
             msg = JoystickEvent()
@@ -209,7 +288,7 @@ class Xbox360ControllerNode(Node):
             msg.y             = left_y
             msg.timestamp     = self.get_clock().now().to_msg().sec
             self.joystick_publisher.publish(msg)
-        
+
         # Publish Right Stick event if not centered (deadzone 0.05)
         if abs(right_x) > 0.05 or abs(right_y) > 0.05:
             msg = JoystickEvent()
@@ -237,23 +316,44 @@ class Xbox360ControllerNode(Node):
             msg.timestamp     = self.get_clock().now().to_msg().sec
             self.joystick_publisher.publish(msg)
 
-        # D-Pad: reported as axes[6] (left=-1/right=+1) and axes[7] (down=-1/up=+1)
-        # Convert to PRESSED / RELEASED button events so button mappings work.
-        if len(axes) >= 8:
-            dpad_map = {
-                'DPadLeft':  axes[6] > 0.5,
-                'DPadRight': axes[6] < -0.5,
-                'DPadUp':    axes[7] > 0.5,
-                'DPadDown':  axes[7] < -0.5,
+        # ── D-Pad ─────────────────────────────────────────────────────────────
+        if self._layout == 'xbox360':
+            # Xbox 360 wireless: D-Pad reported as axes[6] / axes[7]
+            if len(axes) >= 8:
+                dpad_map = {
+                    'DPadLeft':  axes[6] > 0.5,
+                    'DPadRight': axes[6] < -0.5,
+                    'DPadUp':    axes[7] > 0.5,
+                    'DPadDown':  axes[7] < -0.5,
+                }
+                for btn_name, is_pressed in dpad_map.items():
+                    was_pressed = self.prev_dpad_states[btn_name]
+                    if is_pressed and not was_pressed:
+                        self.publish_button_event('PRESSED', btn_name, -1)
+                    elif is_pressed and was_pressed:
+                        self.publish_button_event('HOLD', btn_name, -1)
+                    elif not is_pressed and was_pressed:
+                        self.publish_button_event('RELEASED', btn_name, -1)
+                    self.prev_dpad_states[btn_name] = is_pressed
+        else:
+            # Generic: D-Pad reported as buttons
+            dpad_btn_map = {
+                'DPadUp':    GENERIC_DPAD_UP,
+                'DPadDown':  GENERIC_DPAD_DOWN,
+                'DPadLeft':  GENERIC_DPAD_LEFT,
+                'DPadRight': GENERIC_DPAD_RIGHT,
             }
-            for btn_name, is_pressed in dpad_map.items():
+            for btn_name, idx in dpad_btn_map.items():
+                if idx >= len(buttons):
+                    continue
+                is_pressed  = buttons[idx] == 1
                 was_pressed = self.prev_dpad_states[btn_name]
                 if is_pressed and not was_pressed:
-                    self.publish_button_event('PRESSED', btn_name, -1)
+                    self.publish_button_event('PRESSED', btn_name, idx)
                 elif is_pressed and was_pressed:
-                    self.publish_button_event('HOLD', btn_name, -1)
+                    self.publish_button_event('HOLD', btn_name, idx)
                 elif not is_pressed and was_pressed:
-                    self.publish_button_event('RELEASED', btn_name, -1)
+                    self.publish_button_event('RELEASED', btn_name, idx)
                 self.prev_dpad_states[btn_name] = is_pressed
 
 

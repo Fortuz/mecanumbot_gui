@@ -162,129 +162,6 @@
             border-color: #9ca3af;
         }
 
-        .toolbar-button.rec-idle {
-            color: #dc2626;
-        }
-
-        .toolbar-button.rec-idle:hover {
-            background: #fef2f2;
-            border-color: #dc2626;
-        }
-
-        .toolbar-button.rec-active {
-            color: #ffffff;
-            background: #dc2626;
-            border-color: #dc2626;
-            animation: recPulse 1.2s ease-in-out infinite;
-        }
-
-        @keyframes recPulse {
-            0%, 100% { opacity: 1; }
-            50%       { opacity: 0.75; }
-        }
-
-        /* Recording dropdown panel */
-        .rec-dropdown {
-            position: relative;
-            display: inline-block;
-        }
-
-        .rec-panel {
-            display: none;
-            position: absolute;
-            top: calc(100% + 4px);
-            left: 0;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-            z-index: 2000;
-            min-width: 280px;
-            padding: 14px 16px 12px;
-        }
-
-        .rec-panel.open { display: block; }
-
-        .rec-panel h4 {
-            font-size: 12px;
-            font-weight: 600;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 10px;
-        }
-
-        .rec-topic-list {
-            max-height: 220px;
-            overflow-y: auto;
-            margin-bottom: 12px;
-        }
-
-        .rec-topic-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            padding: 5px 0;
-            border-bottom: 1px solid #f3f4f6;
-            cursor: pointer;
-        }
-
-        .rec-topic-item:last-child { border-bottom: none; }
-
-        .rec-topic-item input[type=checkbox] {
-            margin-top: 2px;
-            flex-shrink: 0;
-            accent-color: #dc2626;
-        }
-
-        .rec-topic-label { font-size: 12px; color: #374151; }
-        .rec-topic-desc  { font-size: 11px; color: #9ca3af; }
-
-        .rec-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .rec-btn-start {
-            flex: 1;
-            background: #dc2626;
-            color: white;
-            border: none;
-            padding: 7px 0;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .rec-btn-start:hover { background: #b91c1c; }
-        .rec-btn-start:disabled { background: #fca5a5; cursor: not-allowed; }
-
-        .rec-btn-stop {
-            flex: 1;
-            background: #374151;
-            color: white;
-            border: none;
-            padding: 7px 0;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .rec-btn-stop:hover { background: #1f2937; }
-        .rec-btn-stop:disabled { background: #d1d5db; cursor: not-allowed; }
-
-        .rec-status-line {
-            font-size: 11px;
-            color: #6b7280;
-            margin-top: 8px;
-            text-align: center;
-            min-height: 16px;
-        }
-
-        .rec-status-line.active { color: #dc2626; font-weight: 600; }
-        
         .status-badge {
             display: flex;
             align-items: center;
@@ -342,8 +219,7 @@
             background: white;
             border: 1px solid #e5e7eb;
             border-radius: 6px;
-            padding: 40px;
-            text-align: center;
+            padding: 28px 40px 32px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
@@ -352,13 +228,200 @@
             font-size: 24px;
             color: #1f2937;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         
         .welcome-card p {
             font-size: 14px;
             color: #6b7280;
+            margin-bottom: 24px;
         }
+
+        /* ── Recording Schemes panel ── */
+        .schemes-panel {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+            text-align: left;
+        }
+        .schemes-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .schemes-panel-header h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+        .scheme-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .scheme-item {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 9px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+            user-select: none;
+        }
+        .scheme-item:hover { border-color: #93c5fd; background: #f0f9ff; }
+        .scheme-item.active {
+            border-color: #2563eb;
+            background: #eff6ff;
+            box-shadow: 0 0 0 2px rgba(37,99,235,.15);
+        }
+        .scheme-item.active .scheme-item-name { color: #1d4ed8; }
+        .scheme-item-main { flex: 1; min-width: 0; }
+        .scheme-item-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .scheme-item-topics {
+            color: #6b7280;
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .scheme-item-actions { display: flex; gap: 5px; flex-shrink: 0; }
+        .scheme-empty { font-size: 13px; color: #9ca3af; font-style: italic; margin-bottom: 10px; }
+        /* Source label badges */
+        .scheme-source-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 3px;
+            letter-spacing: .4px;
+            margin-bottom: 3px;
+        }
+        .scheme-source-badge.host  { background: #dbeafe; color: #1e40af; }
+        .scheme-source-badge.robot { background: #dcfce7; color: #15803d; }
+        /* Destination radio row in modal */
+        .scheme-dest-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .scheme-dest-row label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* Recording controls at the bottom of schemes panel */
+        .rec-controls {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 14px;
+            margin-top: 14px;
+        }
+        .rec-active-info {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 10px;
+        }
+        .rec-btns {
+            display: flex;
+            gap: 8px;
+        }
+        .rec-btn-start {
+            flex: 1;
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 9px 0;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .rec-btn-start:hover:not(:disabled) { background: #b91c1c; }
+        .rec-btn-start:disabled { background: #fca5a5; cursor: not-allowed; }
+        .rec-btn-stop {
+            flex: 1;
+            background: #374151;
+            color: white;
+            border: none;
+            padding: 9px 0;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .rec-btn-stop:hover:not(:disabled) { background: #1f2937; }
+        .rec-btn-stop:disabled { background: #d1d5db; cursor: not-allowed; }
+        .rec-status-line {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+            min-height: 16px;
+        }
+        .rec-status-line.active {
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        /* ── Scheme editor modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,.25);
+            padding: 28px 32px;
+            width: 520px;
+            max-width: 96vw;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-box h2 { font-size: 17px; margin-bottom: 16px; color: #1f2937; }
+        .modal-field { margin-bottom: 14px; }
+        .modal-field label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 5px; }
+        .modal-field input[type=text] {
+            width: 100%; padding: 8px 10px; border: 1px solid #d1d5db;
+            border-radius: 4px; font-size: 13px; font-family: inherit;
+        }
+        .modal-field input[type=text]:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+        .topic-checkboxes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            max-height: 280px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 10px;
+            background: #f9fafb;
+        }
+        .topic-check-item { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; }
+        .topic-check-item input { margin-top: 2px; flex-shrink: 0; }
+        .topic-check-item .tc-label { color: #1f2937; font-weight: 500; word-break: break-all; }
+        .topic-check-item .tc-desc  { color: #6b7280; font-size: 11px; }
+        .modal-dest { display: flex; gap: 8px; margin-bottom: 0; }
+        .modal-dest label { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 400; cursor: pointer; }
+        .modal-footer { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 
         /* ── Robot State panel ── */
         .robot-state-card {
@@ -561,27 +624,8 @@
                     <span style="font-size: 9px;">▼</span>
                 </button>
                 <div class="dropdown-content">
-                    <a href="/button-mapping?user_name={{ user_name }}">📝 Create Actions</a>
-                    <a href="/map-controls?user_name={{ user_name }}">🎮 Map Controls</a>
-                </div>
-            </div>
-        </div>
-        
-        <div class="toolbar-group">
-            <div class="rec-dropdown" id="recDropdown">
-                <button class="toolbar-button rec-idle" id="recToggleBtn" onclick="toggleRecPanel(event)">
-                    ⏺️ Recording
-                </button>
-                <div class="rec-panel" id="recPanel">
-                    <h4>Select Topics to Record</h4>
-                    <div class="rec-topic-list" id="recTopicList">
-                        <em style="font-size:12px;color:#9ca3af;">Loading…</em>
-                    </div>
-                    <div class="rec-actions">
-                        <button class="rec-btn-start" id="recStartBtn" onclick="startRecording()">▶ Start</button>
-                        <button class="rec-btn-stop"  id="recStopBtn"  onclick="stopRecording()" disabled>■ Stop</button>
-                    </div>
-                    <div class="rec-status-line" id="recStatusLine"></div>
+                    <a href="/button-mapping">📝 Create Actions</a>
+                    <a href="/map-controls">🎮 Map Controls</a>
                 </div>
             </div>
         </div>
@@ -605,6 +649,111 @@
         <div class="welcome-card">
             <h1>Welcome to MecanumBot Control System</h1>
             <p>Use the toolbar above to configure controller actions and mappings</p>
+
+            <!-- ── Recording Schemes ── -->
+            <div class="schemes-panel">
+                <div class="schemes-panel-header">
+                    <h3>📋 Recording Schemes</h3>
+                    <button class="btn btn-primary" style="font-size:12px;padding:5px 12px;"
+                            onclick="openSchemeModal()">+ New Scheme</button>
+                </div>
+
+                <div class="scheme-list" id="scheme-list">
+                    {% set has_host = host_recording_schemes %}
+                    {% if has_host %}
+                        {% for sname, topics in host_recording_schemes.items() %}
+                        <div class="scheme-item" id="scheme-item-host-{{ loop.index }}"
+                             data-name="{{ sname }}"
+                             data-source="host"
+                             data-topics='{{ topics | tojson }}'
+                             onclick="toggleSchemeActive(this)">
+                            <div class="scheme-item-main">
+                                <div class="scheme-source-badge host">HOST</div>
+                                <div class="scheme-item-name">{{ sname }}</div>
+                                <div class="scheme-item-topics">{{ topics | join(', ') }}</div>
+                            </div>
+                            <div class="scheme-item-actions" onclick="event.stopPropagation()">
+                                <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;"
+                                        onclick='modifyScheme({{ sname | tojson }}, {{ topics | tojson }}, "host")'>
+                                    Modify
+                                </button>
+                                <button class="btn btn-danger" style="font-size:11px;padding:3px 9px;"
+                                        onclick='deleteScheme({{ sname | tojson }}, "host")'>
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="scheme-empty" id="scheme-empty-msg">No recording schemes saved yet. Create one to get started.</p>
+                    {% endif %}
+                    <!-- Robot schemes injected here by JS after page load -->
+                    <span id="robot-schemes-placeholder" style="display:none"></span>
+                </div>
+
+                <!-- Recording controls -->
+                <div class="rec-controls" id="rec-controls">
+                    <div class="rec-active-info" id="rec-active-info">
+                        Click one or more schemes above to select them for recording.
+                    </div>
+                    <div class="rec-btns">
+                        <button class="rec-btn-start" id="recStartBtn" onclick="startRecording()">
+                            ▶ Start Recording
+                        </button>
+                        <button class="rec-btn-stop" id="recStopBtn" onclick="stopRecording()" disabled>
+                            ■ Stop Recording
+                        </button>
+                    </div>
+                    <div class="rec-status-line" id="recStatusLine"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Scheme editor modal ── -->
+        <div class="modal-overlay" id="schemeModal" onclick="closeSchemeModalOnBg(event)">
+            <div class="modal-box">
+                <h2 id="scheme-modal-title">New Recording Scheme</h2>
+
+                <div class="modal-field">
+                    <label for="scheme-name-input">Scheme Name</label>
+                    <input type="text" id="scheme-name-input" placeholder="e.g. Full Session">
+                </div>
+
+                <div class="modal-field">
+                    <label>Topics to Record</label>
+                    <div class="topic-checkboxes" id="topic-checkboxes">
+                        {% for t in recordable_topics %}
+                        <label class="topic-check-item" id="tci-{{ loop.index }}">
+                            <input type="checkbox" value="{{ t.topic }}">
+                            <span>
+                                <div class="tc-label">
+                                    {% if t.is_service is defined and t.is_service %}
+                                        💡 LED State
+                                    {% else %}
+                                        {{ t.topic }}
+                                    {% endif %}
+                                </div>
+                                <div class="tc-desc">{{ t.description }}</div>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="modal-field">
+                    <label>Save to</label>
+                    <div class="scheme-dest-row" id="scheme-dest-row">
+                        <label><input type="radio" name="scheme-dest" value="host" checked> 🖥 Host</label>
+                        <label><input type="radio" name="scheme-dest" value="robot"> 🤖 Robot</label>
+                        <label><input type="radio" name="scheme-dest" value="both"> Both</label>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeSchemeModal()">Cancel</button>
+                    <button class="btn btn-primary" id="scheme-save-btn" onclick="saveScheme()">Save Scheme</button>
+                </div>
+            </div>
         </div>
 
         <!-- ── Robot State panel ── -->
@@ -649,7 +798,8 @@
                         if (!el) return;
                         if (status.connected) {
                             el.className = 'status-badge connected';
-                            el.innerHTML = `<span class="status-dot connected"></span><span>${status.controller_type || 'Xbox Controller'} Connected</span>`;
+                            el.innerHTML = '<span class="status-dot connected"></span><span></span>';
+                            el.querySelector('span:last-child').textContent = (status.controller_type || 'Xbox Controller') + ' Connected';
                         } else {
                             el.className = 'status-badge disconnected';
                             el.innerHTML = '<span class="status-dot disconnected"></span><span>Controller Disconnected</span>';
@@ -695,62 +845,65 @@
             setInterval(updateRobotStatus, 3000);
         })();
 
-        // ── Recording panel ───────────────────────────────────────────────
+        // ── Recording (scheme-driven) ─────────────────────────────────────
 
-        // Close panel when clicking outside
-        document.addEventListener('click', function(e) {
-            const dropdown = document.getElementById('recDropdown');
-            if (dropdown && !dropdown.contains(e.target)) {
-                document.getElementById('recPanel').classList.remove('open');
-            }
-        });
-
-        function toggleRecPanel(e) {
-            e.stopPropagation();
-            document.getElementById('recPanel').classList.toggle('open');
+        // Toggle a scheme card active/inactive on click
+        function toggleSchemeActive(el) {
+            el.classList.toggle('active');
+            updateRecActiveInfo();
         }
 
-        // Load topic list once
-        fetch('/api/recording/topics')
-            .then(r => r.json())
-            .then(topics => {
-                const list = document.getElementById('recTopicList');
-                list.innerHTML = '';
-                topics.forEach(t => {
-                    const item = document.createElement('label');
-                    item.className = 'rec-topic-item';
-                    const isService = t.is_service === true;
-                    const labelHtml = isService
-                        ? `<div class="rec-topic-label">
-                               💡 LED State
-                               <span style="font-size:10px;background:#f5f3ff;color:#7e22ce;border:1px solid #e9d5ff;border-radius:3px;padding:1px 5px;margin-left:5px;font-weight:600;">service</span>
-                           </div>`
-                        : `<div class="rec-topic-label">${t.topic}</div>`;
-                    item.innerHTML = `
-                        <input type="checkbox" value="${t.topic}" checked>
-                        <span>
-                            ${labelHtml}
-                            <div class="rec-topic-desc">${t.description}</div>
-                        </span>`;
-                    list.appendChild(item);
-                });
-            })
-            .catch(() => {
-                document.getElementById('recTopicList').innerHTML =
-                    '<em style="font-size:12px;color:#ef4444;">Failed to load topics</em>';
+        // Collect all topics from all active scheme cards (union, deduped)
+        function getActiveSchemeTopics() {
+            const topicSet = new Set();
+            document.querySelectorAll('#scheme-list .scheme-item.active').forEach(card => {
+                try {
+                    const topics = JSON.parse(card.dataset.topics);
+                    topics.forEach(t => topicSet.add(t));
+                } catch(e) {}
             });
+            return Array.from(topicSet);
+        }
 
-        function getCheckedTopics() {
-            return Array.from(
-                document.querySelectorAll('#recTopicList input[type=checkbox]:checked')
-            ).map(cb => cb.value);
+        // Update the info line below the scheme list
+        function updateRecActiveInfo() {
+            const active = document.querySelectorAll('#scheme-list .scheme-item.active');
+            const info   = document.getElementById('rec-active-info');
+            if (active.length === 0) {
+                info.textContent = 'Click one or more schemes above to select them for recording.';
+                info.style.color = '#6b7280';
+            } else {
+                const names  = Array.from(active).map(c => c.dataset.name).join(', ');
+                const topics = getActiveSchemeTopics();
+                info.innerHTML = '';
+                const strong = document.createElement('strong');
+                strong.style.color = '#1d4ed8';
+                strong.textContent = `${active.length} scheme(s) active:`;
+                info.appendChild(strong);
+                info.appendChild(document.createTextNode(' ' + names));
+                info.appendChild(document.createElement('br'));
+                const sub = document.createElement('span');
+                sub.style.color = '#6b7280';
+                sub.textContent = `${topics.length} unique topic(s): ${topics.join(', ')}`;
+                info.appendChild(sub);
+                info.style.color = '';
+            }
         }
 
         function startRecording() {
-            const topics = getCheckedTopics();
+            const topics = getActiveSchemeTopics();
             if (topics.length === 0) {
-                setRecStatus('Select at least one topic.', false);
+                setRecStatus('Select at least one scheme first.', false);
                 return;
+            }
+            // Warn about any topics not in the known list
+            const unavailable = topics.filter(t => !ALL_RECORDABLE_TOPICS.has(t));
+            if (unavailable.length > 0) {
+                const ok = confirm(
+                    `⚠ The following topics are not currently available on ROS2 and will produce no data:\n\n` +
+                    `• ${unavailable.join('\n• ')}\n\nStart recording anyway?`
+                );
+                if (!ok) return;
             }
             document.getElementById('recStartBtn').disabled = true;
             fetch('/api/recording/start', {
@@ -789,24 +942,17 @@
         }
 
         function setRecordingActive(active) {
-            const btn = document.getElementById('recToggleBtn');
             const startBtn = document.getElementById('recStartBtn');
             const stopBtn  = document.getElementById('recStopBtn');
             if (active) {
-                btn.className = 'toolbar-button rec-active';
-                btn.textContent = '⏺️ Recording…';
                 startBtn.disabled = true;
                 stopBtn.disabled  = false;
-                // Disable topic checkboxes during recording
-                document.querySelectorAll('#recTopicList input[type=checkbox]')
-                    .forEach(cb => cb.disabled = true);
+                // Lock scheme cards while recording
+                document.querySelectorAll('#scheme-list .scheme-item').forEach(c => c.style.pointerEvents = 'none');
             } else {
-                btn.className = 'toolbar-button rec-idle';
-                btn.textContent = '⏺️ Recording';
                 startBtn.disabled = false;
                 stopBtn.disabled  = true;
-                document.querySelectorAll('#recTopicList input[type=checkbox]')
-                    .forEach(cb => cb.disabled = false);
+                document.querySelectorAll('#scheme-list .scheme-item').forEach(c => c.style.pointerEvents = '');
             }
         }
 
@@ -827,8 +973,54 @@
                 }
             });
 
+        // ── Async robot scheme loader ─────────────────────────────────────
+        // Fetched in the background so the page renders instantly even when
+        // the robot is offline (the ROS2 service call can take up to 15 s).
+        (async function loadRobotSchemes() {
+            try {
+                const resp = await fetch('/api/recording-schemes/robot');
+                const data = await resp.json();
+                if (!data.available || !data.schemes) return;
+                const list    = document.getElementById('scheme-list');
+                const emptyEl = document.getElementById('scheme-empty-msg');
+                let idx = 0;
+                for (const [sname, topics] of Object.entries(data.schemes)) {
+                    idx++;
+                    // Skip if a host card with the same name already exists
+                    if (list.querySelector(`.scheme-item[data-name="${CSS.escape(sname)}"][data-source="host"]`)) continue;
+                    const topicsStr = topics.join(', ');
+                    const card = document.createElement('div');
+                    card.className        = 'scheme-item';
+                    card.id               = `scheme-item-robot-${idx}`;
+                    card.dataset.name     = sname;
+                    card.dataset.source   = 'robot';
+                    card.dataset.topics   = JSON.stringify(topics);
+                    card.onclick          = function() { toggleSchemeActive(this); };
+                    card.innerHTML = `
+                        <div class="scheme-item-main">
+                            <div class="scheme-source-badge robot">ROBOT</div>
+                            <div class="scheme-item-name"></div>
+                            <div class="scheme-item-topics"></div>
+                        </div>
+                        <div class="scheme-item-actions" onclick="event.stopPropagation()">
+                            <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;"
+                                    onclick='modifyScheme(${JSON.stringify(sname)}, ${JSON.stringify(topics)}, "robot")'>
+                                Modify
+                            </button>
+                            <button class="btn btn-danger" style="font-size:11px;padding:3px 9px;"
+                                    onclick='deleteScheme(${JSON.stringify(sname)}, "robot")'>
+                                Delete
+                            </button>
+                        </div>`;
+                    card.querySelector('.scheme-item-name').textContent   = sname;
+                    card.querySelector('.scheme-item-topics').textContent = topicsStr;
+                    list.insertBefore(card, document.getElementById('robot-schemes-placeholder'));
+                    if (emptyEl) emptyEl.style.display = 'none';
+                }
+            } catch(e) { /* robot offline — no robot schemes shown */ }
+        })();
+
         // ── Robot State panel ─────────────────────────────────────────────
-        const TICK_TO_RAD = 0.005061;
         const VEL_TICK_SCALE = (0.229 / 60) * 2 * Math.PI * 0.0325; // → m/s per tick
 
         function rsVal(v, decimals=0, unit='') {
@@ -971,7 +1163,6 @@
             }).join('');
         }
 
-        let _ledLastOk = false;
         let _ledPolling = false;   // guard: skip if previous request still in-flight
 
         function updateLedStatus() {
@@ -990,14 +1181,12 @@
                         age.textContent = new Date().toLocaleTimeString() + ' · offline';
                         body.className = '';
                         body.innerHTML = '<div class="led-status-unavailable">LED service not reachable — is the robot running?</div>';
-                        _ledLastOk = false;
                         return;
                     }
                     dot.className = 'led-status-dot live';
                     age.textContent = new Date().toLocaleTimeString();
                     body.className = 'led-status-body';
                     body.innerHTML = buildLedStatusHTML(data.corners);
-                    _ledLastOk = true;
                 })
                 .catch(() => {
                     _ledPolling = false;
@@ -1008,12 +1197,124 @@
                     age.textContent = new Date().toLocaleTimeString() + ' · offline';
                     body.className = '';
                     body.innerHTML = '<div class="led-status-unavailable">LED service not reachable — is the robot running?</div>';
-                    _ledLastOk = false;
                 });
         }
 
         updateLedStatus();
         setInterval(updateLedStatus, 5000);   // query robot every 5 s
+
+        // ── Recording Schemes ─────────────────────────────────────────────
+        const ALL_RECORDABLE_TOPICS = new Set({{ recordable_topics | map(attribute='topic') | list | tojson }});
+
+        function openSchemeModal(name, topics, dest) {
+            document.getElementById('scheme-modal-title').textContent =
+                name ? `Modify: ${name}` : 'New Recording Scheme';
+            document.getElementById('scheme-name-input').value = name || '';
+            document.querySelectorAll('#topic-checkboxes input[type=checkbox]').forEach(cb => {
+                cb.checked = topics ? topics.includes(cb.value) : false;
+            });
+            // Set destination radio
+            const destVal = dest || 'host';
+            document.querySelectorAll('input[name="scheme-dest"]').forEach(r => {
+                r.checked = (r.value === destVal);
+            });
+            // When modifying an existing scheme, lock dest to its source
+            document.querySelectorAll('#scheme-dest-row input').forEach(r => {
+                r.disabled = !!name;
+            });
+            document.getElementById('schemeModal').classList.add('open');
+        }
+
+        function modifyScheme(name, topics, source) { openSchemeModal(name, topics, source); }
+
+        function closeSchemeModal() {
+            document.getElementById('schemeModal').classList.remove('open');
+        }
+
+        function closeSchemeModalOnBg(event) {
+            if (event.target === document.getElementById('schemeModal')) closeSchemeModal();
+        }
+
+        async function saveScheme(overwrite = false) {
+            const name   = document.getElementById('scheme-name-input').value.trim();
+            const topics = Array.from(
+                document.querySelectorAll('#topic-checkboxes input[type=checkbox]:checked')
+            ).map(cb => cb.value);
+            const destination = document.querySelector('input[name="scheme-dest"]:checked')?.value || 'host';
+            if (!name)           { showDashToast('Scheme name is required', 'error'); return; }
+            if (!topics.length)  { showDashToast('Select at least one topic', 'error'); return; }
+            const btn = document.getElementById('scheme-save-btn');
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/recording-schemes/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, topics, overwrite, destination})
+                });
+                const data = await resp.json();
+                if (resp.status === 409) {
+                    btn.disabled = false;
+                    if (confirm(`Recording scheme "${name}" already exists. Overwrite?`)) {
+                        saveScheme(true);
+                    }
+                    return;
+                }
+                if (data.success) {
+                    let msg = `Scheme "${name}" saved`;
+                    if (data.saved_host && data.saved_robot) msg += ' to host & robot';
+                    else if (data.saved_host)  msg += ' to host';
+                    else if (data.saved_robot) msg += ' to robot';
+                    if (data.robot_msg) msg += ` (robot: ${data.robot_msg})`;
+                    showDashToast(msg, 'success');
+                    closeSchemeModal();
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    showDashToast('Error: ' + (data.error || 'unknown'), 'error');
+                }
+            } catch(e) {
+                showDashToast('Network error: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteScheme(name, source) {
+            const srcLabel = source === 'robot' ? 'robot' : 'host';
+            if (!confirm(`Delete recording scheme "${name}" from the ${srcLabel} DB?`)) return;
+            try {
+                const resp = await fetch('/api/recording-schemes/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, destination: source || 'host'})
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showDashToast(`Scheme "${name}" deleted from ${srcLabel}`, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showDashToast('Delete failed: ' + (data.error || data.message || ''), 'error');
+                }
+            } catch(e) {
+                showDashToast('Network error', 'error');
+            }
+        }
+
+        // Simple toast helper (not using session flash)
+        function showDashToast(message, type) {
+            let t = document.getElementById('dash-toast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'dash-toast';
+                t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:opacity .4s;';
+                document.body.appendChild(t);
+            }
+            t.textContent = message;
+            t.style.background = type === 'error' ? '#e74c3c' : '#27ae60';
+            t.style.color = '#fff';
+            t.style.opacity = '1';
+            clearTimeout(t._to);
+            t._to = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+        }
 
     </script>
 </body>

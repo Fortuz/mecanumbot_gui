@@ -6,8 +6,8 @@ out so these tests run entirely in-process with no robot / ROS2 context.
 """
 
 import sys
-import os
 import types
+import json
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -30,9 +30,18 @@ for _m in _STUB_MODS:
         sys.modules[_m] = _stub
 
 # Give msg stubs needed class references
-sys.modules['std_msgs.msg'].String   = MagicMock
-sys.modules['sensor_msgs.msg'].Joy   = MagicMock
+sys.modules['sensor_msgs.msg'].Joy     = MagicMock
 sys.modules['geometry_msgs.msg'].Twist = MagicMock
+
+# Provide all class attributes that docker_node.py imports at module level
+for _cls in ('GetRobotActions', 'SetLedStatus', 'GetLedStatus',
+             'GetMappings', 'SaveMapping', 'DeleteRobotMapping',
+             'ApplyMapping', 'SaveRobotAction', 'DeleteRobotAction',
+             'GetRecordingSchemes', 'SaveRecordingScheme', 'DeleteRecordingScheme'):
+    setattr(sys.modules['mecanumbot_msgs.srv'], _cls, MagicMock)
+for _cls in ('ActionTuple', 'ActionDescriptor',
+             'ControllerStatus', 'ButtonEvent', 'JoystickEvent', 'OpenCRState'):
+    setattr(sys.modules['mecanumbot_msgs.msg'], _cls, MagicMock)
 
 # ── Import the real app / docker_node ────────────────────────────────────────
 import docker_node as dn
@@ -45,8 +54,10 @@ from mock_database import MockDatabase
 def mock_node():
     """A fully mocked DockerNode instance."""
     node = MagicMock()
-    node.register_action_with_robot.return_value = (True, '')
-    node.record_new_action.return_value = None
+    node.save_action_to_robot.return_value = (True, '')
+    node.delete_robot_action.return_value  = (True, '')
+    node.record_new_action.return_value    = None
+    node.get_robot_actions.return_value    = ({}, None)
     return node
 
 
@@ -69,6 +80,12 @@ def client(mock_node):
 
     # Cleanup
     dn._docker_node_instance = None
+    dn.CURRENT_USER = {"name": None, "id": None}
+
+
+def _login(c, db, user_name='TestUser'):
+    """Helper: POST /save to set CURRENT_USER in docker_node."""
+    c.post('/save', data={'user_name': user_name})
 
 
 # ── /api/controller-status ────────────────────────────────────────────────────
@@ -86,6 +103,79 @@ class TestControllerStatusApi:
         data = resp.get_json()
         assert data['connected'] is True
         assert data['controller_type'] == 'Xbox 360'
+
+
+# ── /api/actions (GET) ───────────────────────────────────────────────────────
+
+class TestActionsApiSource:
+
+    def test_host_source_default(self, client):
+        c, db, _ = client
+        _login(c, db)
+        resp = c.get('/api/actions')
+        assert resp.status_code == 200
+        assert isinstance(resp.get_json(), list)
+
+    def test_host_source_explicit(self, client):
+        c, db, _ = client
+        _login(c, db)
+        resp = c.get('/api/actions?source=host')
+        assert resp.status_code == 200
+        assert isinstance(resp.get_json(), list)
+
+    def test_robot_source_offline(self, client):
+        c, db, node = client
+        _login(c, db)
+        node.get_robot_actions.return_value = (None, 'Robot not connected')
+        resp = c.get('/api/actions?source=robot')
+        assert resp.status_code == 502
+        assert 'error' in resp.get_json()
+
+    def test_robot_source_online(self, client):
+        c, db, node = client
+        _login(c, db)
+        node.get_robot_actions.return_value = (
+            {'drive': {'type': 'joystick', 'tuples': []}}, None)
+        resp = c.get('/api/actions?source=robot')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert isinstance(data, list)
+        assert data[0]['name'] == 'drive'
+
+    def test_include_tuples_returns_tuple_data(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        tuples = [('/cmd_vel', '{"linear":{"x":1}}', 'geometry_msgs/msg/Twist',
+                   1.0, 1.0, 0.0, 0.0, 'topic', '')]
+        db.save_action(uid, 'test_act', tuples, 'button_once')
+
+        resp = c.get('/api/actions?include_tuples=1')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 1
+        assert data[0]['name'] == 'test_act'
+        assert 'tuples' in data[0]
+        assert len(data[0]['tuples']) == 1
+        assert data[0]['tuples'][0][0] == '/cmd_vel'
+
+    def test_without_include_tuples_no_tuple_data(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        tuples = [('/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                   1.0, 1.0, 0.0, 0.0, 'topic', '')]
+        db.save_action(uid, 'test_act2', tuples, 'button_once')
+
+        resp = c.get('/api/actions')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) >= 1
+        # Without include_tuples, tuples should not be present
+        for item in data:
+            if item['name'] == 'test_act2':
+                assert 'tuples' not in item
+                break
 
 
 # ── /api/robot-status ────────────────────────────────────────────────────────
@@ -106,123 +196,258 @@ class TestRobotStatusApi:
         assert resp.get_json()['available'] is True
 
 
-# ── /api/sync-status ─────────────────────────────────────────────────────────
+# ── /api/actions/save (POST JSON) ────────────────────────────────────────────
 
-class TestSyncStatusApi:
-
-    def test_not_attempted(self, client):
-        c, *_ = client
-        dn.LATEST_SYNC_RESULT = {
-            'attempted': False, 'success': None,
-            'accepted_count': 0, 'conflicts': [], 'timestamp': None
-        }
-        resp = c.get('/api/sync-status')
-        assert resp.status_code == 200
-        assert resp.get_json()['attempted'] is False
-
-    def test_success_with_accepted_count(self, client):
-        c, *_ = client
-        dn.LATEST_SYNC_RESULT = {
-            'attempted': True, 'success': True,
-            'accepted_count': 3, 'conflicts': [], 'timestamp': '2026-01-01'
-        }
-        resp = c.get('/api/sync-status')
-        assert resp.get_json()['accepted_count'] == 3
-
-
-# ── /button-mapping/create (POST) ────────────────────────────────────────────
-
-class TestCreateActionRoute:
+class TestSaveActionApi:
 
     def test_valid_action_saves_to_db(self, client):
         c, db, node = client
-        resp = c.post('/button-mapping/create', data={
-            'user_name':    'TestUser',
-            'mapping_name': 'my_action',
-            'action_type':  'button_once',
-            'topic_0':      '/cmd_vel',
-            'message_0':    '{"linear":{"x":0.5}}',
-            'message_type_0': 'geometry_msgs/msg/Twist',
-            'publish_type_0': 'topic',
-            'service_name_0': '',
-            'offset_x_0':   '0.0',
-            'offset_y_0':   '0.0',
-        }, follow_redirects=False)
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
 
-        # Should redirect on success
-        assert resp.status_code in (302, 200)
-        assert 'my_action' in db._actions
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({
+                          'name':        'my_action',
+                          'action_type': 'button_once',
+                          'tuples':      [['/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                                           1.0, 1.0, 0.0, 0.0, 'topic', '']],
+                          'destination': 'host',
+                      }),
+                      content_type='application/json')
 
-    def test_robot_rejection_shows_warning(self, client):
-        c, db, node = client
-        # Robot rejects the action
-        node.register_action_with_robot.return_value = (False, 'Robot did not respond.')
-
-        resp = c.post('/button-mapping/create', data={
-            'user_name':    'TestUser',
-            'mapping_name': 'offline_action',
-            'action_type':  'button_once',
-            'topic_0':      '/cmd_vel',
-            'message_0':    '{"linear":{"x":1.0}}',
-            'message_type_0': 'geometry_msgs/msg/Twist',
-            'publish_type_0': 'topic',
-            'service_name_0': '',
-            'offset_x_0':   '0.0',
-            'offset_y_0':   '0.0',
-        }, follow_redirects=False)
-
-        # Action is still saved locally
-        assert 'offline_action' in db._actions
-        # Page re-renders with a warning (200, not redirect)
         assert resp.status_code == 200
-        assert b'robot_warning' in resp.data or b'Saved locally' in resp.data or \
-               b'Robot did not respond' in resp.data
+        data = resp.get_json()
+        assert data['success'] is True
+        assert data['saved_host'] is True
+        assert 'my_action' in db.get_all_actions(uid)
 
-    def test_missing_name_does_not_save(self, client):
+    def test_missing_name_returns_400(self, client):
         c, db, _ = client
-        c.post('/button-mapping/create', data={
-            'user_name':    'TestUser',
-            'mapping_name': '',
-            'action_type':  'button_once',
-        })
-        assert len(db._actions) == 0
+        _login(c, db)
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({
+                          'name':        '',
+                          'action_type': 'button_once',
+                          'tuples':      [['/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                                           1.0, 1.0, 0.0, 0.0, 'topic', '']],
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 400
 
-    def test_missing_tuples_redirects_without_save(self, client):
+    def test_missing_tuples_returns_400(self, client):
         c, db, _ = client
-        resp = c.post('/button-mapping/create', data={
-            'user_name':    'TestUser',
-            'mapping_name': 'no_tuples',
-            'action_type':  'button_once',
-            # No topic/message rows
-        }, follow_redirects=False)
-        assert 'no_tuples' not in db._actions
+        _login(c, db)
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({'name': 'no_tuples', 'tuples': []}),
+                      content_type='application/json')
+        assert resp.status_code == 400
+
+    def test_not_logged_in_returns_401(self, client):
+        c, db, _ = client
+        # Do NOT call _login — CURRENT_USER.id is None
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({
+                          'name': 'act', 'action_type': 'button_once',
+                          'tuples': [['/cmd_vel', '{}', 'std_msgs/msg/String',
+                                      1.0, 1.0, 0.0, 0.0, 'topic', '']],
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 401
+
+    def test_save_to_robot_calls_node(self, client):
+        c, db, node = client
+        _login(c, db)
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({
+                          'name':        'robot_act',
+                          'action_type': 'button_once',
+                          'tuples':      [['/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                                           1.0, 1.0, 0.0, 0.0, 'topic', '']],
+                          'destination': 'robot',
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 200
+        node.save_action_to_robot.assert_called_once()
+
+    def test_conflict_returns_409_without_overwrite(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        # Create an existing action
+        tuples = [('/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                   1.0, 1.0, 0.0, 0.0, 'topic', '')]
+        db.save_action(uid, 'existing_action', tuples, 'button_once')
+
+        # Try to save again without overwrite
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({
+                          'name':        'existing_action',
+                          'action_type': 'button_once',
+                          'tuples':      [['/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                                           1.0, 1.0, 0.0, 0.0, 'topic', '']],
+                          'destination': 'host',
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 409
+        assert 'already exists' in resp.get_json()['error']
+
+    def test_overwrite_allows_replacing_existing(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        # Create an existing action
+        tuples = [('/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                   1.0, 1.0, 0.0, 0.0, 'topic', '')]
+        db.save_action(uid, 'overwrite_action', tuples, 'button_once')
+
+        # Save again with overwrite=True
+        resp = c.post('/api/actions/save',
+                      data=json.dumps({
+                          'name':        'overwrite_action',
+                          'action_type': 'button_hold',  # Changed type
+                          'tuples':      [['/cmd_vel', '{}', 'geometry_msgs/msg/Twist',
+                                           1.0, 1.0, 0.0, 0.0, 'topic', '']],
+                          'destination': 'host',
+                          'overwrite':   True,
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+        # Verify the action was updated
+        actions = db.get_all_actions(uid)
+        assert actions['overwrite_action']['type'] == 'button_hold'
 
 
-# ── /button-mapping/delete (POST) ────────────────────────────────────────────
+# ── /api/actions/delete (POST JSON) ─────────────────────────────────────────
 
-class TestDeleteActionRoute:
+class TestDeleteActionApi:
 
     def test_delete_removes_from_db(self, client):
         c, db, _ = client
-        db.save_action('to_delete', [], 'button_once')
-        c.post('/button-mapping/delete', data={
-            'user_name':   'TestUser',
-            'action_name': 'to_delete',
-        })
-        assert 'to_delete' not in db._actions
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        db.save_action(uid, 'to_delete', [], 'button_once')
+
+        resp = c.post('/api/actions/delete',
+                      data=json.dumps({'name': 'to_delete', 'destination': 'host'}),
+                      content_type='application/json')
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+        assert 'to_delete' not in db.get_all_actions(uid)
+
+    def test_missing_name_returns_400(self, client):
+        c, db, _ = client
+        _login(c, db)
+        resp = c.post('/api/actions/delete',
+                      data=json.dumps({'name': ''}),
+                      content_type='application/json')
+        assert resp.status_code == 400
 
     def test_delete_nonexistent_does_not_crash(self, client):
-        c, *_ = client
-        resp = c.post('/button-mapping/delete', data={
-            'user_name':   'TestUser',
-            'action_name': 'ghost',
-        })
-        assert resp.status_code in (302, 200)
+        c, db, _ = client
+        _login(c, db)
+        resp = c.post('/api/actions/delete',
+                      data=json.dumps({'name': 'ghost', 'destination': 'host'}),
+                      content_type='application/json')
+        assert resp.status_code == 200
 
 
-# ── /api/recording-state ─────────────────────────────────────────────────────
+# ── /api/mappings/save conflict checks ───────────────────────────────────────
 
-class TestRecordingStateApi:
+class TestSaveMappingConflict:
+
+    def test_mapping_conflict_returns_409(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        # Create an existing mapping
+        db.save_mapping(uid, 'existing_map', [('A', 'action1', 'once')], [])
+
+        # Try to save again without overwrite
+        resp = c.post('/api/mappings/save',
+                      data=json.dumps({
+                          'name':        'existing_map',
+                          'destination': 'host',
+                          'buttons':     [{'button': 'B', 'action': 'action2', 'trigger_mode': 'once'}],
+                          'joysticks':   [],
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 409
+        assert 'already exists' in resp.get_json()['error']
+
+    def test_mapping_overwrite_succeeds(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        # Create an existing mapping
+        db.save_mapping(uid, 'overwrite_map', [('A', 'action1', 'once')], [])
+
+        # Save again with overwrite=True
+        resp = c.post('/api/mappings/save',
+                      data=json.dumps({
+                          'name':        'overwrite_map',
+                          'destination': 'host',
+                          'buttons':     [{'button': 'B', 'action': 'action2', 'trigger_mode': 'once'}],
+                          'joysticks':   [],
+                          'overwrite':   True,
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+        # Verify the mapping was updated
+        mapping = db.get_mapping(uid, 'overwrite_map')
+        assert mapping is not None
+        # Check that button B is now assigned
+        assert any(b['button'] == 'B' for b in mapping['buttons'])
+
+
+# ── /api/recording-schemes/save conflict checks ──────────────────────────────
+
+class TestSaveRecordingSchemeConflict:
+
+    def test_conflict_returns_409_if_exists_without_overwrite(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        # Pre-create scheme
+        db.save_recording_scheme(uid, 'existing_scheme', ['/cmd_vel'])
+
+        # Try to save again without overwrite
+        resp = c.post('/api/recording-schemes/save',
+                      data=json.dumps({
+                          'name': 'existing_scheme',
+                          'topics': ['/joy', '/chatter'],
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 409
+        assert 'already exists' in resp.get_json()['error']
+
+    def test_overwrite_allows_replacing_existing(self, client):
+        c, db, _ = client
+        _login(c, db)
+        uid = dn.CURRENT_USER['id']
+        # Pre-create scheme
+        db.save_recording_scheme(uid, 'overwrite_scheme', ['/cmd_vel'])
+
+        # Save again with overwrite=True
+        resp = c.post('/api/recording-schemes/save',
+                      data=json.dumps({
+                          'name': 'overwrite_scheme',
+                          'topics': ['/joy', '/chatter'],
+                          'overwrite': True,
+                      }),
+                      content_type='application/json')
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+        # Verify the scheme was updated
+        schemes = db.get_all_recording_schemes(uid)
+        assert 'overwrite_scheme' in schemes
+        assert '/joy' in schemes['overwrite_scheme']
+
+
+# ── /api/recording/status ────────────────────────────────────────────────────
+
+class TestRecordingStatusApi:
 
     def test_returns_inactive_by_default(self, client):
         c, *_ = client
@@ -230,6 +455,18 @@ class TestRecordingStateApi:
             'active': False, 'user_name': None,
             'topics': [], 'dir': None, 'started_at': None
         }
-        resp = c.get('/api/recording-state')
+        resp = c.get('/api/recording/status')
         assert resp.status_code == 200
         assert resp.get_json()['active'] is False
+
+    def test_returns_active_state(self, client):
+        c, *_ = client
+        dn.RECORDING_STATE = {
+            'active': True, 'user_name': 'alice',
+            'topics': ['/cmd_vel'], 'dir': '/tmp/rec', 'started_at': 'now'
+        }
+        resp = c.get('/api/recording/status')
+        data = resp.get_json()
+        assert data['active'] is True
+        assert data['user_name'] == 'alice'
+

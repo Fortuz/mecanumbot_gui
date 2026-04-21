@@ -255,6 +255,38 @@
         }
         
         .action-list { max-height: 600px; overflow-y: auto; }
+
+        .source-toggle {
+            display: flex;
+            gap: 4px;
+            padding: 6px 0 10px;
+        }
+        .toggle-btn {
+            flex: 1;
+            padding: 6px 0;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            background: #f9fafb;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.15s, color 0.15s;
+        }
+        .toggle-btn.active {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+        .toggle-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .item-loading, .item-empty {
+            padding: 20px 12px;
+            color: #9ca3af;
+            font-size: 0.85rem;
+            text-align: center;
+        }
         
         .action-item {
             background: #f9fafb;
@@ -364,7 +396,7 @@
         <span class="ribbon-title">🤖 MecanumBot - Create Actions</span>
         <div class="user-section">
             <div class="user-badge">👤 {{ user_name }}</div>
-            <a href="/main-dashboard?user_name={{ user_name }}" class="back-btn">← Back to Dashboard</a>
+            <a href="/main-dashboard" class="back-btn">← Back to Dashboard</a>
         </div>
     </div>
     
@@ -380,22 +412,9 @@
         
         <div class="content-grid">
             <div class="card">
-                <h2>New Action</h2>
-                {% if error %}
-                <div style="background:#fee2e2;border:1px solid #f87171;color:#b91c1c;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:14px;">
-                    <strong>Action rejected by robot:</strong> {{ error }}
-                </div>
-                {% endif %}
-                {% if robot_warning %}
-                <div style="background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:14px;">
-                    <strong>⚠ Saved locally, robot unreachable:</strong> {{ robot_warning }}
-                    It will be sent to the robot on the next sync.
-                </div>
-                {% endif %}
-                <form method="POST" action="/button-mapping/create" id="action-form">
-                    <input type="hidden" name="user_name" value="{{ user_name }}">
-
-                    <!-- hidden textarea: assembled by JS on submit -->
+                <h2 id="form-card-title">New Action <span id="save-target-badge" class="action-badge button_once" style="font-size:10px;vertical-align:middle;margin-left:6px;">→ Host</span></h2>
+                <form id="action-form" onsubmit="return false;">
+                    <!-- hidden textarea: assembled by JS (kept for buildTupleList compat) -->
                     <textarea id="tuple_list" name="tuple_list" style="display:none;"></textarea>
 
                     <div class="form-group">
@@ -431,9 +450,21 @@
                         </div>
                     </div>
 
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label style="margin-bottom:4px;">Save to</label>
+                        <div class="source-toggle" style="margin-top:0;">
+                            <button id="save-dest-host-btn"  class="toggle-btn active" onclick="setSaveDest('host')">Host</button>
+                            <button id="save-dest-robot-btn" class="toggle-btn"        onclick="setSaveDest('robot')">Robot</button>
+                            <button id="save-dest-both-btn"  class="toggle-btn"        onclick="setSaveDest('both')">Both</button>
+                        </div>
+                    </div>
+
                     <div class="button-group">
-                        <button type="submit" class="btn btn-primary" onclick="return buildTupleList(event)">
-                            Create Action
+                        <button type="button" class="btn btn-primary" id="submit-action-btn" onclick="submitAction()">
+                            Save Action
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="cancel-modify-btn" style="display:none;" onclick="cancelModify()">
+                            Cancel
                         </button>
                     </div>
                 </form>
@@ -441,105 +472,13 @@
             
             <div class="card">
                 <h2>Existing Actions</h2>
-                <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">Actions saved on <strong>this device</strong> (host database).</p>
-                <div class="action-list">
-                    {% if mappings %}
-                        {% for action_name, mapping_data in mappings.items() %}
-                        <div class="action-item" data-action-name="{{ action_name }}">
-                            <div class="action-header">
-                                <div>
-                                    <span class="action-name">{{ action_name }}</span>
-                                    <span class="action-badge {{ mapping_data.type }}">
-                                        {% if mapping_data.type == 'button_once' %}
-                                            Button (Once)
-                                        {% elif mapping_data.type == 'button_hold' %}
-                                            Button (Hold)
-                                        {% elif mapping_data.type == 'joystick' %}
-                                            Joystick
-                                        {% else %}
-                                            {{ mapping_data.type }}
-                                        {% endif %}
-                                    </span>
-                                </div>
-                                <form method="POST" action="/button-mapping/delete" style="display: inline;">
-                                    <input type="hidden" name="user_name" value="{{ user_name }}">
-                                    <input type="hidden" name="action_name" value="{{ action_name }}">
-                                    <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this action?')">Delete</button>
-                                </form>
-                            </div>
-                            <div class="action-details">
-                                {% for tuple in mapping_data.tuples %}
-                                    <div style="margin-bottom: 8px;">
-                                        {% if tuple|length >= 8 and tuple[7] == 'service' %}
-                                            <strong style="color:#7e22ce;">⚙ Service: {{ tuple[8] if tuple|length >= 9 else 'set_led_status' }}</strong>
-                                        {% else %}
-                                            <strong>{{ tuple[0] }}</strong>
-                                            {% if tuple|length >= 3 %}<span style="color: #6366f1;"> ({{ tuple[2] }})</span>{% endif %}
-                                            {% if mapping_data.type == 'joystick' and tuple|length >= 7 %}
-                                                <span style="color:#059669;font-size:11px;margin-left:6px;">offset X={{ tuple[5] }}, Y={{ tuple[6] }}</span>
-                                            {% elif mapping_data.type == 'joystick' and tuple|length >= 5 %}
-                                                <span style="color:#059669;font-size:11px;margin-left:6px;">offset X=0.0, Y=0.0</span>
-                                            {% endif %}
-                                        {% endif %}
-                                        <br>
-                                        <span style="color: #6b7280; font-size: 0.9em;">{{ tuple[1] }}</span>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                        <div style="text-align: center; padding: 40px 0; color: #9ca3af;">
-                            <p>No actions created yet</p>
-                        </div>
-                    {% endif %}
+                <div class="source-toggle">
+                    <button id="source-host-btn" class="toggle-btn active" onclick="setActionSource('host')">Host</button>
+                    <button id="source-robot-btn" class="toggle-btn" onclick="setActionSource('robot')">Robot</button>
                 </div>
-
-                {% if robot_actions %}
-                <div id="robot-actions-section">
-                <h2 style="margin-top:28px;">Robot's Own Actions</h2>
-                <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
-                    Actions defined in the <strong>robot's database</strong>.
-                    These names are reserved — you cannot create a host action with the same name.
-                </p>
-                <div class="action-list">
-                    {% for action_name, action_data in robot_actions.items() %}
-                    <div class="action-item" style="border-left:3px solid #f59e0b;background:#fffbeb;">
-                        <div class="action-header">
-                            <div>
-                                <span class="action-name">{{ action_name }}</span>
-                                <span class="action-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">
-                                    {% if action_data.type == 'button_once' %}Button (Once)
-                                    {% elif action_data.type == 'button_hold' %}Button (Hold)
-                                    {% elif action_data.type == 'joystick' %}Joystick
-                                    {% else %}{{ action_data.type }}{% endif %}
-                                </span>
-                                <span style="font-size:11px;color:#92400e;margin-left:6px;">🤖 Robot-only</span>
-                            </div>
-                        </div>
-                        <div class="action-details">
-                            {% for tuple in action_data.tuples %}
-                                {% if tuple|length == 3 %}
-                                    <div style="margin-bottom:8px;">
-                                        <strong>{{ tuple[0] }}</strong> <span style="color:#6366f1;">({{ tuple[2] }})</span><br>
-                                        <span style="color:#6b7280;font-size:0.9em;">{{ tuple[1] }}</span>
-                                    </div>
-                                {% else %}
-                                    {{ tuple[0] }}: {{ tuple[1] }}<br>
-                                {% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endfor %}
+                <div class="action-list" id="action-list-container">
+                    <div class="item-loading">Loading…</div>
                 </div>
-                </div><!-- #robot-actions-section -->
-                {% elif robot_actions is defined %}
-                <div id="robot-actions-section">
-                <div style="margin-top:20px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;color:#6b7280;">
-                    🤖 No robot-side actions found — either the robot is offline or it has no actions in its database.
-                </div>
-                </div><!-- #robot-actions-section -->
-                {% endif %}
             </div>
         </div>
     </div>
@@ -550,6 +489,94 @@
 
         // Ordered list of known topics shown in dropdown
         const KNOWN_TOPICS = Object.keys(SCHEMAS);
+
+        // ── Action source toggle (Host / Robot) ───────────────────────────────
+        let _actionSource = 'host';
+        let _saveDest = 'host';         // Save destination (independent of view)
+        let _editingActionName = null;  // Track the name of action being edited
+
+        function setSaveDest(dest) {
+            _saveDest = dest;
+            document.getElementById('save-dest-host-btn').classList.toggle('active',  dest === 'host');
+            document.getElementById('save-dest-robot-btn').classList.toggle('active', dest === 'robot');
+            document.getElementById('save-dest-both-btn').classList.toggle('active',  dest === 'both');
+            updateSaveTargetBadge();
+        }
+
+        function setActionSource(source) {
+            _actionSource = source;
+            document.getElementById('source-host-btn').classList.toggle('active', source === 'host');
+            document.getElementById('source-robot-btn').classList.toggle('active', source === 'robot');
+            updateSaveTargetBadge();
+            loadActions();
+            // If we were editing, cancel since we switched sources
+            if (_editingActionName) cancelModify();
+        }
+
+        function updateSaveTargetBadge() {
+            const badge = document.getElementById('save-target-badge');
+            if (badge) {
+                const label = _saveDest === 'host' ? 'Host' : _saveDest === 'robot' ? 'Robot' : 'Host + Robot';
+                const cls   = _saveDest === 'host' ? 'button_once' : _saveDest === 'robot' ? 'button_hold' : 'joystick';
+                badge.textContent = '→ ' + label;
+                badge.className = 'action-badge ' + cls;
+                badge.style.cssText = 'font-size:10px;vertical-align:middle;margin-left:6px;';
+            }
+        }
+
+        function loadActions() {
+            const container = document.getElementById('action-list-container');
+            container.innerHTML = '<div class="item-loading">Loading…</div>';
+
+            fetch('/api/actions?source=' + _actionSource + '&include_tuples=1')
+                .then(r => r.json())
+                .then(data => {
+                    container.innerHTML = '';
+                    if (data.error) {
+                        showToast(data.error, 'error');
+                        container.innerHTML = '<div class="item-empty">Error loading actions</div>';
+                        return;
+                    }
+                    const list = Array.isArray(data) ? data : [];
+                    if (list.length === 0) {
+                        container.innerHTML = '<div class="item-empty">No actions found</div>';
+                        return;
+                    }
+                    // Store actions for modify
+                    window._loadedActions = {};
+                    list.forEach(a => {
+                        window._loadedActions[a.name] = a;
+                        const badgeText = a.type === 'button_once' ? 'Button (Once)'
+                                        : a.type === 'button_hold' ? 'Button (Hold)'
+                                        : a.type === 'joystick' ? 'Joystick' : a.type;
+                        const div = document.createElement('div');
+                        div.className = 'action-item';
+                        div.dataset.actionName = a.name;
+                        div.dataset.actionType = a.type;
+                        div.innerHTML = `
+                            <div class="action-header">
+                                <div>
+                                    <span class="action-name"></span>
+                                    <span class="action-badge ${escHtml(a.type)}"></span>
+                                </div>
+                                <div style="display:flex;gap:6px;">
+                                    <button type="button" class="btn btn-secondary" onclick="loadActionForEdit('${escHtml(a.name)}')">Modify</button>
+                                    <button type="button" class="btn btn-danger" onclick="deleteAction('${escHtml(a.name)}')">Delete</button>
+                                </div>
+                            </div>`;
+                        div.querySelector('.action-name').textContent = a.name;
+                        div.querySelector('.action-badge').textContent = badgeText;
+                        container.appendChild(div);
+                    });
+                })
+                .catch(e => {
+                    container.innerHTML = '<div class="item-empty">Failed to load actions</div>';
+                    showToast('Failed to load actions: ' + e.message, 'error');
+                });
+        }
+
+        // Load actions on page load
+        document.addEventListener('DOMContentLoaded', () => { updateSaveTargetBadge(); loadActions(); });
 
         // ── Action type hint texts ────────────────────────────────────────────
         const ACTION_HINTS = {
@@ -1039,7 +1066,8 @@
                     if (!el) return;
                     if (s.connected) {
                         el.className = 'status-badge connected';
-                        el.innerHTML = `<span class="status-dot connected"></span><span>${s.controller_type || 'Xbox Controller'} Connected</span>`;
+                        el.innerHTML = '<span class="status-dot connected"></span><span></span>';
+                        el.querySelector('span:last-child').textContent = (s.controller_type || 'Xbox Controller') + ' Connected';
                     } else {
                         el.className = 'status-badge disconnected';
                         el.innerHTML = '<span class="status-dot disconnected"></span><span>Controller Disconnected</span>';
@@ -1048,98 +1076,300 @@
             setTimeout(poll, 2000);
         })();
 
+        // ── Robot status polling ──────────────────────────────────────────────
+        let _robotOnline = false;
+
+        function _applyRobotOnlineState() {
+            // No buttons are disabled based on robot status —
+            // the API will return an appropriate error if the robot is offline.
+        }
+
+        (function pollRobotStatus() {
+            fetch('/api/robot-status')
+                .then(r => r.json())
+                .then(s => {
+                    _robotOnline = s.available === true;
+                    _applyRobotOnlineState();
+                })
+                .catch(() => {
+                    _robotOnline = false;
+                    _applyRobotOnlineState();
+                });
+            setTimeout(pollRobotStatus, 3000);
+        })();
+
         // ── Add a first row automatically ─────────────────────────────────────
         addTopicRow();
 
-        // ── Per-action sync status badges ─────────────────────────────────────
-        function refreshActionSyncStatus() {
-            fetch('/api/sync-status')
-                .then(r => r.json())
-                .then(data => {
-                    const items = document.querySelectorAll('.action-item[data-action-name]');
-                    items.forEach(item => {
-                        const old = item.querySelector('.sync-badge');
-                        if (old) old.remove();
-                    });
-
-                    const badge = (cls, text) => {
-                        const b = document.createElement('span');
-                        b.className = 'sync-badge ' + cls;
-                        b.textContent = text;
-                        return b;
-                    };
-
-                    if (!data || !data.attempted) {
-                        items.forEach(item => {
-                            item.querySelector('.action-name').after(badge('sync-unknown', '⊘ Not synced'));
-                        });
-                        return;
-                    }
-
-                    // If the sync was attempted but failed (e.g. robot offline), mark all as unsynced
-                    if (!data.success && data.accepted_count === 0) {
-                        items.forEach(item => {
-                            item.querySelector('.action-name').after(badge('sync-conflict', '⚠ Robot offline'));
-                        });
-                        return;
-                    }
-
-                    const conflictNames = new Set(
-                        (data.conflicts || []).map(c => c.name).filter(Boolean)
-                    );
-
-                    items.forEach(item => {
-                        const name = item.getAttribute('data-action-name');
-                        const b = conflictNames.has(name)
-                            ? badge('sync-conflict', '⚠ Conflict')
-                            : badge('sync-ok', '✓ Synced');
-                        item.querySelector('.action-name').after(b);
-                    });
-                })
-                .catch(() => {});
+        // ── Toast notification ────────────────────────────────────────────────
+        function showToast(msg, type) {
+            const t = document.createElement('div');
+            const bg = type === 'success' ? '#dcfce7' : type === 'warning' ? '#fef3c7' : '#fee2e2';
+            const border = type === 'success' ? '#16a34a' : type === 'warning' ? '#d97706' : '#dc2626';
+            t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:6px;border:1px solid ${border};background:${bg};font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,.15);max-width:360px;`;
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(() => t.remove(), 400); }, 4000);
         }
-        refreshActionSyncStatus();
-        setInterval(refreshActionSyncStatus, 10000);
 
-        // ── Robot-side actions live reload ────────────────────────────────────
-        function refreshRobotActions() {
-            fetch('/api/robot-actions')
-                .then(r => r.json())
-                .then(robotActions => {
-                    const container = document.getElementById('robot-actions-section');
-                    if (!container) return;
-                    const names = Object.keys(robotActions);
-                    if (names.length === 0) {
-                        container.innerHTML = '<div style="margin-top:20px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;color:#6b7280;">🤖 No robot-side actions found — either the robot is offline or it has no actions in its database.</div>';
-                        return;
-                    }
-                    let html = '<h2 style="margin-top:28px;">Robot\'s Own Actions</h2>';
-                    html += '<p style="font-size:12px;color:#6b7280;margin-bottom:12px;">Actions defined in the <strong>robot\'s database</strong>. These names are reserved — you cannot create a host action with the same name.</p>';
-                    html += '<div class="action-list">';
-                    for (const [actionName, actionData] of Object.entries(robotActions)) {
-                        const typeLabel = actionData.type === 'button_once' ? 'Button (Once)'
-                                        : actionData.type === 'button_hold' ? 'Button (Hold)'
-                                        : actionData.type === 'joystick'    ? 'Joystick'
-                                        : actionData.type;
-                        html += `<div class="action-item" style="border-left:3px solid #f59e0b;background:#fffbeb;">
-                            <div class="action-header"><div>
-                                <span class="action-name">${actionName}</span>
-                                <span class="action-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">${typeLabel}</span>
-                                <span style="font-size:11px;color:#92400e;margin-left:6px;">🤖 Robot-only</span>
-                            </div></div>
-                            <div class="action-details">`;
-                        for (const t of (actionData.tuples || [])) {
-                            html += `<div style="margin-bottom:8px;"><strong>${t[0]}</strong> <span style="color:#6366f1;">(${t[2] || ''})</span><br><span style="color:#6b7280;font-size:0.9em;">${t[1]}</span></div>`;
+        // ── Submit (create or modify) action via AJAX ─────────────────────────
+        async function submitAction(overwrite = false) {
+            const validationErrors = validateFields();
+            if (validationErrors.length > 0) {
+                alert('⚠ Cannot save action — please fix the following:\n\n• ' +
+                      validationErrors.join('\n• '));
+                return;
+            }
+
+            const actionName  = document.getElementById('mapping_name').value.trim();
+            const actionType  = document.getElementById('action_type').value;
+            // Use save-destination toggle as destination
+            const destination = _saveDest;
+
+            if (!actionName) { showToast('Action name is required', 'error'); return; }
+
+            // If editing the same action name, force overwrite
+            const isEditing = _editingActionName && _editingActionName === actionName;
+            if (isEditing) overwrite = true;
+
+            // Build tuples using existing logic
+            const rows  = document.getElementById('topic-rows').querySelectorAll('.topic-row');
+            const isJoy = actionType === 'joystick';
+            const tuples = [];
+
+            for (const row of rows) {
+                const rowId = row.id;
+
+                if (row.dataset.rowType === 'service') {
+                    const svcSel  = document.getElementById(rowId + '-svc-sel');
+                    const svcName = svcSel ? svcSel.value : '';
+                    if (!svcName) continue;
+                    let msgJson = '';
+                    if (svcName === 'set_led_status') {
+                        const cfg = {};
+                        for (const corner of ['FL','FR','BL','BR']) {
+                            const colorEl = document.getElementById(`${rowId}-color-${corner}`);
+                            const modeEl  = document.getElementById(`${rowId}-mode-${corner}`);
+                            cfg[corner] = { color: colorEl ? (parseInt(colorEl.value)||0) : 0,
+                                            mode:  modeEl  ? (parseInt(modeEl.value) ||4) : 4 };
                         }
-                        html += '</div></div>';
+                        msgJson = JSON.stringify(cfg);
                     }
-                    html += '</div>';
-                    container.innerHTML = html;
-                })
-                .catch(() => {});
+                    if (!msgJson) continue;
+                    tuples.push(['', msgJson, '', 1.0, 1.0, 0.0, 0.0, 'service', svcName]);
+                    continue;
+                }
+
+                const sel      = document.getElementById(rowId + '-sel');
+                const topicKey = sel ? sel.value : '';
+                if (!topicKey) continue;
+                const schema = SCHEMAS[topicKey];
+                const msgType = schema ? schema.msg_type : '';
+                let topic   = topicKey;
+                if (schema && schema._topic_override) topic = schema._topic_override;
+
+                let msgJson = buildMsgJson(rowId);
+                if (!isJoy) {
+                    msgJson = msgJson.replace(/"X"/g,'0').replace(/"Y"/g,'0')
+                                     .replace(/:\s*X\b/g,':0').replace(/:\s*Y\b/g,':0');
+                }
+                if (!msgJson) continue;
+
+                const oxEl = document.getElementById(rowId + '-ox');
+                const oyEl = document.getElementById(rowId + '-oy');
+                const ox = oxEl ? parseFloat(oxEl.value)||0.0 : 0.0;
+                const oy = oyEl ? parseFloat(oyEl.value)||0.0 : 0.0;
+                tuples.push([topic, msgJson, msgType, 1.0, 1.0, ox, oy, 'topic', '']);
+            }
+
+            if (tuples.length === 0) { showToast('Add at least one topic or service row.', 'error'); return; }
+
+            const btn = document.getElementById('submit-action-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+
+            const payload = { name: actionName, action_type: actionType,
+                              tuples: tuples, destination: destination };
+            if (overwrite) payload.overwrite = true;
+
+            try {
+                const resp = await fetch('/api/actions/save', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (resp.status === 409 && data.error && data.error.includes('already exists') && !overwrite) {
+                    // Conflict — offer overwrite
+                    btn.disabled = false;
+                    btn.textContent = 'Save Action';
+                    if (confirm(data.error + '\n\nOverwrite the existing action?')) {
+                        submitAction(true);
+                    }
+                    return;
+                }
+                if (data.success) {
+                    let msg = `Action "${actionName}" saved`;
+                    if (data.saved_host && data.saved_robot) msg += ' to host + robot';
+                    else if (data.saved_host)  msg += ' to host DB';
+                    else if (data.saved_robot) msg += ' to robot DB';
+                    if (data.robot_msg) msg += ` ⚠ ${data.robot_msg}`;
+                    showToast(msg, data.robot_msg ? 'warning' : 'success');
+                    cancelModify();
+                    loadActions();
+                } else {
+                    showToast('Error: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch(e) {
+                showToast('Network error: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = _editingActionName ? 'Update Action' : 'Save Action';
+            }
         }
-        refreshRobotActions();
-        setInterval(refreshRobotActions, 10000);
+
+        // ── Delete action via AJAX ────────────────────────────────────────────
+        async function deleteAction(name) {
+            // Use save-destination toggle as destination
+            const dest = _saveDest;
+            if (!confirm(`Delete action "${name}" from ${dest}?`)) return;
+            try {
+                const resp = await fetch('/api/actions/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ name: name, destination: dest })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast(`Action "${name}" deleted`, 'success');
+                    loadActions();
+                } else {
+                    showToast('Delete failed: ' + (data.message || data.error || ''), 'error');
+                }
+            } catch(e) {
+                showToast('Network error: ' + e.message, 'error');
+            }
+        }
+
+        // ── Pre-fill form for modify ──────────────────────────────────────────
+        function loadActionForEdit(name) {
+            const actionData = window._loadedActions && window._loadedActions[name];
+            if (!actionData) {
+                showToast('Action data not found. Try refreshing.', 'error');
+                return;
+            }
+            modifyAction(name, actionData);
+        }
+
+        function modifyAction(name, data) {
+            document.getElementById('mapping_name').value = name;
+            document.getElementById('action_type').value  = data.type || 'button_once';
+            onActionTypeChange();
+
+            // Clear and rebuild topic rows from stored tuples
+            document.getElementById('topic-rows').innerHTML = '';
+            rowSeq = 0;
+            for (const t of (data.tuples || [])) {
+                // Tuple format: [topic, message, msg_type, scale_x, scale_y, offset_x, offset_y, publish_type, service_name]
+                const publishType = t[7] || 'topic';
+                const serviceName = t[8] || '';
+
+                if (publishType === 'service') {
+                    addServiceRow();
+                    const rows = document.getElementById('topic-rows').querySelectorAll('.topic-row');
+                    const rowId = rows[rows.length - 1].id;
+                    const svcSel = document.getElementById(rowId + '-svc-sel');
+                    if (svcSel) {
+                        svcSel.value = serviceName;
+                        onServiceSelect(rowId);
+                        // Restore LED values if set_led_status
+                        if (serviceName === 'set_led_status' && t[1]) {
+                            try {
+                                const cfg = JSON.parse(t[1]);
+                                for (const corner of ['FL','FR','BL','BR']) {
+                                    const colorEl = document.getElementById(`${rowId}-color-${corner}`);
+                                    const modeEl  = document.getElementById(`${rowId}-mode-${corner}`);
+                                    if (colorEl && cfg[corner]) colorEl.value = cfg[corner].color || 0;
+                                    if (modeEl && cfg[corner])  modeEl.value  = cfg[corner].mode || 4;
+                                }
+                            } catch(e) { console.warn('Failed to parse LED config:', e); }
+                        }
+                    }
+                } else {
+                    addTopicRow();
+                    const rows = document.getElementById('topic-rows').querySelectorAll('.topic-row');
+                    const rowId = rows[rows.length - 1].id;
+                    const sel = document.getElementById(rowId + '-sel');
+                    if (sel) {
+                        // Find matching schema key by topic and message type
+                        const topicName = t[0] || '';
+                        const msgType   = t[2] || '';
+                        const matchKey = Object.keys(SCHEMAS).find(k =>
+                            (SCHEMAS[k]._topic_override || k) === topicName && SCHEMAS[k].msg_type === msgType
+                        ) || topicName;
+                        sel.value = matchKey;
+                        onTopicSelect(rowId);
+
+                        // Restore field values from saved message JSON
+                        if (t[1] && SCHEMAS[matchKey]) {
+                            try {
+                                const msgObj = JSON.parse(t[1]);
+                                const schema = SCHEMAS[matchKey];
+                                for (const f of schema.fields) {
+                                    const fid = `${rowId}-f-${f.name.replace(/\./g,'_')}`;
+                                    const el  = document.getElementById(fid);
+                                    if (el && !f.readonly) {
+                                        const val = getNestedValue(msgObj, f.name.split('.'));
+                                        if (val !== undefined) el.value = val;
+                                    }
+                                }
+                                updatePreview(rowId);
+                            } catch(e) { console.warn('Failed to parse message JSON:', e); }
+                        }
+
+                        // Set offset values
+                        const oxEl = document.getElementById(rowId + '-ox');
+                        const oyEl = document.getElementById(rowId + '-oy');
+                        if (oxEl) oxEl.value = t[5] || 0;
+                        if (oyEl) oyEl.value = t[6] || 0;
+                    }
+                }
+            }
+
+            _editingActionName = name;  // Track that we're editing this action
+            document.getElementById('submit-action-btn').textContent = 'Update Action';
+            document.getElementById('cancel-modify-btn').style.display = '';
+            const titleEl = document.getElementById('form-card-title');
+            updateSaveTargetBadge();
+            titleEl.innerHTML = `Modify: ${escHtml(name)} <span id="save-target-badge"></span>`;
+            updateSaveTargetBadge();
+            document.getElementById('action-form').scrollIntoView({behavior:'smooth'});
+        }
+
+        // Helper to get nested value from object using dot-notation path
+        function getNestedValue(obj, parts) {
+            let cur = obj;
+            for (const p of parts) {
+                if (cur === null || cur === undefined) return undefined;
+                cur = cur[p];
+            }
+            return cur;
+        }
+
+        function cancelModify() {
+            _editingActionName = null;  // Clear edit mode
+            document.getElementById('mapping_name').value = '';
+            document.getElementById('action_type').value = 'button_once';
+            onActionTypeChange();
+            document.getElementById('topic-rows').innerHTML = '';
+            rowSeq = 0;
+            addTopicRow();
+            document.getElementById('submit-action-btn').textContent = 'Save Action';
+            document.getElementById('cancel-modify-btn').style.display = 'none';
+            const titleEl = document.getElementById('form-card-title');
+            titleEl.innerHTML = `New Action <span id="save-target-badge"></span>`;
+            updateSaveTargetBadge();
+        }
     </script>
 </body>
 </html>

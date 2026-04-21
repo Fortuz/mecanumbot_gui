@@ -4,7 +4,6 @@ conftest.py — shared pytest fixtures for all test modules.
 
 import os
 import sys
-import tempfile
 import pytest
 
 # ── Add source directories to sys.path so imports work without installation ──

@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y \
 COPY host/requirements.txt /app/requirements.txt
 RUN pip3 install --no-cache-dir -r /app/requirements.txt
 
-# ── Build mecanumbot_msgs so SyncActions service type is available ────────────
+# ── Build mecanumbot_msgs so ROS2 service types are available ────────────
 # Build context is the project root, so shared/ is reachable
 #COPY shared/mecanumbot_msgs/ /ws/src/mecanumbot_msgs/
 WORKDIR /ws

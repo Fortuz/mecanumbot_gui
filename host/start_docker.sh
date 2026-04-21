@@ -17,7 +17,7 @@ cleanup() {
 trap cleanup INT TERM
 
 # Set ROS Domain ID
-#export ROS_DOMAIN_ID=30
+#export ROS_DOMAIN_ID=19
 echo $ROS_DOMAIN_ID
 # Stop and remove existing container if running
 echo "Stopping existing container (if any)..."
@@ -39,6 +39,11 @@ fi
 echo "✓ Image built successfully."
 echo ""
 
+# Ensure the host Documents directory exists and is owned by the current user
+# before Docker mounts it (Docker auto-creates missing mount dirs as root).
+mkdir -p ~/Documents
+sudo chown -R "$(id -u):$(id -g)" ~/Documents
+
 # Start Docker container (foreground-attached via logs, not -d)
 echo "Starting mecanumbot-gui container..."
 sudo docker run -d \
@@ -48,7 +53,7 @@ sudo docker run -d \
     --pid=host \
     --privileged \
     --user "$(id -u):$(id -g)" \
-    -e ROS_DOMAIN_ID=30 \
+    -e ROS_DOMAIN_ID=19 \
     -e ROS_LOCALHOST_ONLY=0 \
     -v ~/Documents:/host_docs \
     mecanumbot-gui
@@ -62,8 +67,8 @@ echo "✓ Docker container started successfully!"
 echo ""
 echo "=========================================="
 echo "Flask GUI: http://localhost:8080"
-echo "Log file:  ~/Dokumentumok/controller_status.log"
-echo "Recordings:~/Dokumentumok/recordings/"
+echo "Log file:  ~/Documents/controller_status.log"
+echo "Recordings:~/Documents/recordings/"
 echo "=========================================="
 echo ""
 echo "Press Ctrl+C to stop the container."
