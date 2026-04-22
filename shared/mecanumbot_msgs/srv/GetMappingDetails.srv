@@ -1,0 +1,13 @@
+# GetMappingDetails.srv
+# Retrieve the full button/joystick assignments for a single named mapping
+# stored in the robot's local database.  Called only when the user clicks
+# Modify on a robot-side mapping.
+
+# Request
+string user_name
+string mapping_name
+---
+# Response
+bool   success
+string mapping_json   # JSON-encoded mapping: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
+string message        # error description on failure, empty on success

@@ -18,6 +18,7 @@
         .page-header h1 { font-size: 20px; color: #1f2937; margin-bottom: 8px; }
         .page-header p { font-size: 13px; color: #6b7280; }
         .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .lists-column { display: flex; flex-direction: column; gap: 20px; }
         .card { background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
         .card h2 { font-size: 16px; color: #1f2937; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; }
         .form-group { margin-bottom: 16px; }
@@ -43,7 +44,6 @@
         .mapping-source-badge { font-size: 11px; padding: 2px 8px; border-radius: 3px; font-weight: 500; }
         .badge-host   { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
         .badge-robot  { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-        .badge-both   { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
         .mapping-item-actions { display: flex; gap: 6px; }
         .mapping-details { font-size: 12px; color: #6b7280; margin-top: 6px; }
         .assignment-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
@@ -71,11 +71,21 @@
         </div>
 
         <div class="content-grid">
-            <!-- LEFT: Mapping list -->
-            <div class="card">
-                <h2>Saved Mappings</h2>
-                <div id="mapping-list-container">
-                    <div class="empty-state"><p>Loading mappings…</p></div>
+            <!-- LEFT: Two separate mapping panels -->
+            <div class="lists-column">
+                <!-- Host mappings -->
+                <div class="card">
+                    <h2>🖥️ Host Mappings</h2>
+                    <div id="host-mapping-list">
+                        <div class="empty-state"><p>Loading…</p></div>
+                    </div>
+                </div>
+                <!-- Robot mappings -->
+                <div class="card">
+                    <h2>🤖 Robot Mappings</h2>
+                    <div id="robot-mapping-list">
+                        <div class="empty-state"><p>Loading…</p></div>
+                    </div>
                 </div>
             </div>
 
@@ -93,10 +103,9 @@
 
                 <div class="form-group">
                     <label for="mapping-destination">Save To</label>
-                    <select id="mapping-destination">
-                        <option value="host">Host DB only</option>
-                        <option value="robot">Robot DB only</option>
-                        <option value="both">Both (Host + Robot)</option>
+                    <select id="mapping-destination" onchange="onDestinationChange()">
+                        <option value="host">Host DB</option>
+                        <option value="robot">Robot DB</option>
                     </select>
                 </div>
 
@@ -134,7 +143,17 @@
         const JOY_ACTIONS = {{ joystick_actions | tojson }};
 
         // ── State ─────────────────────────────────────────────────────────────
-        let _editingMappingName = null;  // Track the name of mapping being edited
+        let _editingMappingName = null;
+        let _editingMappingSide = null;  // 'host' or 'robot'
+        // Actions stored separately per side
+        let _hostBtnActions  = [];
+        let _hostJoyActions  = [];
+        let _robotBtnActions = [];
+        let _robotJoyActions = [];
+
+        // Raw mapping stores — keyed by name
+        let _hostMappings  = {};   // name → full data object
+        let _robotMappings = {};   // name → data object or null (fetched on demand)
 
         // ── Toast ─────────────────────────────────────────────────────────────
         function showToast(msg, type) {
@@ -147,112 +166,152 @@
             setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400);},4000);
         }
 
-        // ── Render mapping list (combined host + robot) ───────────────────────
-        let allMappings = {};   // name → {source:'host'|'robot'|'both', data?}
-
+        // ── Load & render mapping lists ───────────────────────────────────────
         async function loadMappings() {
-            const container = document.getElementById('mapping-list-container');
-            container.innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
+            document.getElementById('host-mapping-list').innerHTML  = '<div class="empty-state"><p>Loading…</p></div>';
+            document.getElementById('robot-mapping-list').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
             try {
                 const [hostResp, robotResp] = await Promise.all([
                     fetch('/api/mappings'),
-                    fetch('/api/robot/mappings'),
+                    fetch('/api/robot/mapping-names'),
                 ]);
                 const hostData  = await hostResp.json();
                 const robotData = await robotResp.json();
 
-                // /api/mappings returns a plain array
-                // /api/robot/mappings returns {names:[...], mappings:[{name,buttons,joysticks},...]}
-                const hostList    = Array.isArray(hostData) ? hostData : [];
-                const robotList   = robotData.mappings || [];
-                const robotByName = {};
-                for (const m of robotList) robotByName[m.name] = m;
-                const robotNames  = new Set(Object.keys(robotByName));
-
-                allMappings = {};
-                for (const m of hostList) {
-                    allMappings[m.name] = { source: robotNames.has(m.name) ? 'both' : 'host', data: m };
-                }
-                for (const name of robotNames) {
-                    if (!allMappings[name]) {
-                        allMappings[name] = { source: 'robot', data: robotByName[name] };
-                    }
+                _hostMappings = {};
+                for (const m of (Array.isArray(hostData) ? hostData : [])) {
+                    _hostMappings[m.name] = m;
                 }
 
-                renderMappingList();
+                // Preserve any already-fetched robot detail data
+                const newRobotNames = new Set(robotData.names || []);
+                for (const name of Object.keys(_robotMappings)) {
+                    if (!newRobotNames.has(name)) delete _robotMappings[name];
+                }
+                for (const name of newRobotNames) {
+                    if (!_robotMappings[name]) _robotMappings[name] = null;
+                }
+
+                renderHostMappings();
+                renderRobotMappings();
             } catch(e) {
-                container.innerHTML = `<div class="empty-state"><p style="color:#dc2626;">Failed to load: ${escHtml(e.message)}</p></div>`;
+                const msg = `<div class="empty-state"><p style="color:#dc2626;">Failed to load: ${escHtml(e.message)}</p></div>`;
+                document.getElementById('host-mapping-list').innerHTML  = msg;
+                document.getElementById('robot-mapping-list').innerHTML = msg;
             }
         }
 
-        function renderMappingList() {
-            const container = document.getElementById('mapping-list-container');
-            const names = Object.keys(allMappings);
-            if (names.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>No mappings saved yet.</p></div>';
-                return;
-            }
+        function _renderMappingItems(entries, side) {
+            // entries: array of {name, data}
+            if (!entries.length) return '<div class="empty-state"><p>No mappings saved yet.</p></div>';
             let html = '<div class="mapping-list">';
-            for (const name of names) {
-                const entry = allMappings[name];
-                const srcLabel = entry.source === 'both' ? 'Host + Robot'
-                               : entry.source === 'robot' ? 'Robot' : 'Host';
-                const srcClass = entry.source === 'both' ? 'badge-both'
-                               : entry.source === 'robot' ? 'badge-robot' : 'badge-host';
+            for (const { name, data } of entries) {
                 let details = '';
-                if (entry.data) {
-                    const btns = (entry.data.buttons  || []).map(b => `${escHtml(b.button)}→${escHtml(b.action)}`).join(', ');
-                    const joys = (entry.data.joysticks || []).map(j => `${escHtml(j.joystick)}→${escHtml(j.action)}`).join(', ');
+                if (data) {
+                    const btns = (data.buttons  || []).map(b => `${escHtml(b.button)}→${escHtml(b.action)}`).join(', ');
+                    const joys = (data.joysticks || []).map(j => `${escHtml(j.joystick)}→${escHtml(j.action)}`).join(', ');
                     if (btns) details += `<div>🎮 ${btns}</div>`;
                     if (joys) details += `<div>🕹️ ${joys}</div>`;
                 }
                 html += `
                 <div class="mapping-item">
                     <div class="mapping-item-header">
-                        <div>
-                            <span class="mapping-name">${escHtml(name)}</span>
-                            <span class="mapping-source-badge ${srcClass}">${srcLabel}</span>
-                        </div>
+                        <span class="mapping-name">${escHtml(name)}</span>
                         <div class="mapping-item-actions">
                             <button class="btn btn-success btn-sm" style="padding:4px 10px;font-size:12px;"
-                                    onclick='applyMapping(${JSON.stringify(name)})'>Apply</button>
+                                    onclick='applyMapping(${JSON.stringify(name)},${JSON.stringify(side)})'>Apply</button>
                             <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"
-                                    onclick='modifyMapping(${JSON.stringify(name)})'>Modify</button>
+                                    onclick='modifyMapping(${JSON.stringify(name)},${JSON.stringify(side)})'>Modify</button>
                             <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;"
-                                    onclick='deleteMapping(${JSON.stringify(name)})'>Delete</button>
+                                    onclick='deleteMapping(${JSON.stringify(name)},${JSON.stringify(side)})'>Delete</button>
                         </div>
                     </div>
                     ${details ? `<div class="mapping-details">${details}</div>` : ''}
                 </div>`;
             }
-            html += '</div>';
-            container.innerHTML = html;
+            return html + '</div>';
+        }
+
+        function renderHostMappings() {
+            const entries = Object.entries(_hostMappings).map(([name, data]) => ({ name, data }));
+            document.getElementById('host-mapping-list').innerHTML = _renderMappingItems(entries, 'host');
+        }
+
+        function renderRobotMappings() {
+            const entries = Object.keys(_robotMappings).map(name => ({ name, data: _robotMappings[name] }));
+            document.getElementById('robot-mapping-list').innerHTML = _renderMappingItems(entries, 'robot');
         }
 
         function escHtml(s) {
             return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
+        // ── Load actions from host + robot (stored separately) ────────────────
+        async function loadActionsForMapping() {
+            _hostBtnActions = Object.entries(BTN_ACTIONS).map(([name, d]) => ({
+                name, type: d.type || 'button'
+            }));
+            _hostJoyActions = Object.entries(JOY_ACTIONS).map(([name]) => ({
+                name, type: 'joystick'
+            }));
+
+            // Fetch robot actions (best-effort — silently skipped if offline)
+            try {
+                const resp = await fetch('/api/actions?source=robot');
+                if (resp.ok) {
+                    const actions = await resp.json();
+                    for (const a of (Array.isArray(actions) ? actions : [])) {
+                        if (a.type === 'joystick') _robotJoyActions.push({ name: a.name, type: a.type });
+                        else                        _robotBtnActions.push({ name: a.name, type: a.type });
+                    }
+                }
+            } catch (_) { /* robot offline — skip */ }
+
+            _updateAllActionDropdowns();
+        }
+
+        // Return the correct action list based on currently selected destination
+        function _activeBtnActions() {
+            return document.getElementById('mapping-destination').value === 'robot'
+                ? _robotBtnActions : _hostBtnActions;
+        }
+        function _activeJoyActions() {
+            return document.getElementById('mapping-destination').value === 'robot'
+                ? _robotJoyActions : _hostJoyActions;
+        }
+
+        // Called when the user changes the destination dropdown
+        function onDestinationChange() {
+            // Clear all rows — actions from the other side are no longer valid
+            document.getElementById('btn-rows').innerHTML = '';
+            document.getElementById('joy-rows').innerHTML = '';
+            rowSeq = 0;
+            // (No need to call _updateAllActionDropdowns — rows are gone)
+        }
+
+        function _updateAllActionDropdowns() {
+            document.querySelectorAll('select.action-btn-select').forEach(sel => {
+                const cur = sel.value;
+                sel.innerHTML = _buildActionOptions(_activeBtnActions(), cur);
+            });
+            document.querySelectorAll('select.action-joy-select').forEach(sel => {
+                const cur = sel.value;
+                sel.innerHTML = _buildActionOptions(_activeJoyActions(), cur);
+            });
+        }
+
+        function _buildActionOptions(actionList, selected) {
+            if (!actionList.length) return '<option value="">-- no actions available --</option>';
+            let html = '<option value="">-- Action --</option>';
+            for (const a of actionList) {
+                const lbl = a.type === 'button_hold' ? ' (Hold)' : '';
+                html += `<option value="${escHtml(a.name)}"${a.name===selected?' selected':''}>${escHtml(a.name)}${lbl}</option>`;
+            }
+            return html;
+        }
+
         // ── Button row helpers ────────────────────────────────────────────────
         let rowSeq = 0;
-
-        function btnActionOptions(selected) {
-            let o = '<option value="">-- Action --</option>';
-            for (const name of Object.keys(BTN_ACTIONS)) {
-                const t = BTN_ACTIONS[name].type || '';
-                const lbl = t === 'button_hold' ? '(Hold)' : '(Once)';
-                o += `<option value="${escHtml(name)}" ${name===selected?'selected':''}>${escHtml(name)} ${lbl}</option>`;
-            }
-            return o;
-        }
-
-        function joyActionOptions(selected) {
-            let o = '<option value="">-- Action --</option>';
-            for (const name of Object.keys(JOY_ACTIONS)) {
-                o += `<option value="${escHtml(name)}" ${name===selected?'selected':''}>${escHtml(name)}</option>`;
-            }
-            return o;
-        }
 
         function buttonOptions(selected) {
             let o = '<option value="">-- Button --</option>';
@@ -276,7 +335,7 @@
             tr.id = id;
             tr.innerHTML = `
                 <td><select id="${id}-btn">${buttonOptions(btn)}</select></td>
-                <td><select id="${id}-act">${btnActionOptions(action)}</select></td>
+                <td><select id="${id}-act" class="action-btn-select">${_buildActionOptions(_activeBtnActions(), action)}</select></td>
                 <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
             document.getElementById('btn-rows').appendChild(tr);
         }
@@ -287,7 +346,7 @@
             tr.id = id;
             tr.innerHTML = `
                 <td><select id="${id}-joy">${joystickOptions(joy)}</select></td>
-                <td><select id="${id}-act">${joyActionOptions(action)}</select></td>
+                <td><select id="${id}-act" class="action-joy-select">${_buildActionOptions(_activeJoyActions(), action)}</select></td>
                 <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
             document.getElementById('joy-rows').appendChild(tr);
         }
@@ -324,8 +383,8 @@
                 showToast('Add at least one button or joystick assignment', 'error'); return;
             }
 
-            // If editing the same mapping name, force overwrite
-            if (_editingMappingName && _editingMappingName === name) {
+            // If editing the same mapping name on the same side, force overwrite
+            if (_editingMappingName === name && _editingMappingSide === dest) {
                 overwrite = true;
             }
 
@@ -354,9 +413,8 @@
 
                 if (data.success) {
                     let msg = `Mapping "${name}" saved`;
-                    if (data.saved_host && data.saved_robot) msg += ' to host + robot';
-                    else if (data.saved_host)  msg += ' to host DB';
-                    else if (data.saved_robot) msg += ' to robot DB';
+                    if (data.saved_host)  msg += ' to host DB';
+                    if (data.saved_robot) msg += ' to robot DB';
                     if (data.robot_msg) msg += ` ⚠ ${data.robot_msg}`;
                     showToast(msg, data.robot_msg ? 'warning' : 'success');
                     cancelEdit();
@@ -373,15 +431,17 @@
         }
 
         // ── Apply mapping to robot ────────────────────────────────────────────
-        async function applyMapping(name) {
-            const entry = allMappings[name];
-            const fromRobot = entry && (entry.source === 'robot' || entry.source === 'both');
+        async function applyMapping(name, side) {
+            const fromRobot = side === 'robot';
             const payload = { name, from_robot_db: fromRobot };
 
-            // If mapping only lives on host, include full data
-            if (!fromRobot && entry && entry.data) {
-                payload.buttons  = entry.data.buttons  || [];
-                payload.joysticks = entry.data.joysticks || [];
+            // Host-side mapping: include full button/joystick data inline
+            if (!fromRobot) {
+                const data = _hostMappings[name];
+                if (data) {
+                    payload.buttons   = data.buttons   || [];
+                    payload.joysticks = data.joysticks || [];
+                }
             }
 
             try {
@@ -402,22 +462,17 @@
         }
 
         // ── Delete mapping ────────────────────────────────────────────────────
-        async function deleteMapping(name) {
-            const dest = prompt(
-                `Delete "${name}" from:\n  host — Host DB only\n  robot — Robot DB only\n  both — Both\n\nType: host / robot / both`,
-                allMappings[name]?.source || 'host'
-            );
-            if (!dest) return;
-            if (!confirm(`Delete mapping "${name}" from "${dest}"?`)) return;
+        async function deleteMapping(name, side) {
+            if (!confirm(`Delete mapping "${name}" from ${side === 'robot' ? 'robot' : 'host'} DB?`)) return;
             try {
                 const resp = await fetch('/api/mappings/delete', {
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ name, destination: dest })
+                    body: JSON.stringify({ name, destination: side })
                 });
                 const data = await resp.json();
                 if (data.success) {
-                    showToast(`Mapping "${name}" deleted`, 'success');
+                    showToast(`Mapping "${name}" deleted from ${side} DB`, 'success');
                     await loadMappings();
                 } else {
                     showToast('Delete failed: ' + (data.message || data.error || ''), 'error');
@@ -428,35 +483,54 @@
         }
 
         // ── Modify (pre-fill form) ────────────────────────────────────────────
-        function modifyMapping(name) {
-            const entry = allMappings[name];
-            if (!entry) { showToast('Mapping not found', 'warning'); return; }
+        async function modifyMapping(name, side) {
+            let data = side === 'robot' ? _robotMappings[name] : _hostMappings[name];
 
+            // Robot mapping with no cached detail yet — fetch now
+            if (side === 'robot' && !data) {
+                showToast('Fetching mapping details from robot…', 'warning');
+                try {
+                    const resp   = await fetch(`/api/robot/mapping-details/${encodeURIComponent(name)}`);
+                    const result = await resp.json();
+                    if (!result.success) {
+                        showToast('Could not load mapping: ' + (result.error || 'unknown error'), 'error');
+                        return;
+                    }
+                    data = result.mapping;
+                    _robotMappings[name] = data;   // cache
+                    renderRobotMappings();
+                } catch(e) {
+                    showToast('Failed to fetch mapping details: ' + e.message, 'error');
+                    return;
+                }
+            }
+
+            // Set destination BEFORE adding rows so action dropdowns show the right side
+            document.getElementById('mapping-destination').value = side;
             document.getElementById('mapping-name-input').value  = name;
-            document.getElementById('mapping-destination').value = entry.source === 'both' ? 'both' : entry.source;
-
             document.getElementById('btn-rows').innerHTML = '';
             document.getElementById('joy-rows').innerHTML = '';
             rowSeq = 0;
 
-            if (entry.data) {
-                for (const b of (entry.data.buttons  || [])) addBtnRow(b.button, b.action);
-                for (const j of (entry.data.joysticks || [])) addJoyRow(j.joystick, j.action);
+            if (data) {
+                for (const b of (data.buttons   || [])) addBtnRow(b.button, b.action);
+                for (const j of (data.joysticks || [])) addJoyRow(j.joystick, j.action);
             }
-            // If robot-only (no host data), the form starts empty — user can rebuild and save
 
-            _editingMappingName = name;  // Track that we're editing this mapping
-            document.getElementById('form-title').textContent = `Modify: ${name}`;
+            _editingMappingName = name;
+            _editingMappingSide = side;
+            document.getElementById('form-title').textContent = `Modify: ${name} (${side})`;
             document.getElementById('save-mapping-btn').textContent = 'Update Mapping';
             document.getElementById('cancel-edit-btn').style.display = '';
             document.getElementById('mapping-name-input').scrollIntoView({behavior:'smooth'});
         }
 
         function cancelEdit() {
-            _editingMappingName = null;  // Clear edit mode
-            document.getElementById('mapping-name-input').value    = '';
-            document.getElementById('btn-rows').innerHTML  = '';
-            document.getElementById('joy-rows').innerHTML  = '';
+            _editingMappingName = null;
+            _editingMappingSide = null;
+            document.getElementById('mapping-name-input').value = '';
+            document.getElementById('btn-rows').innerHTML = '';
+            document.getElementById('joy-rows').innerHTML = '';
             rowSeq = 0;
             document.getElementById('form-title').textContent = 'New Mapping';
             document.getElementById('save-mapping-btn').textContent = 'Save Mapping';
@@ -464,6 +538,7 @@
         }
 
         // ── Init ──────────────────────────────────────────────────────────────
+        loadActionsForMapping();
         loadMappings();
     </script>
 </body>

@@ -1070,6 +1070,12 @@
                     ['Back-Left',   rsVal(s.curr_bl)],
                     ['Back-Right',  rsVal(s.curr_br)],
                 ]),
+                group('Wheel Error State', [
+                    ['Front-Left',  `<span class="rs-value" style="color:${s.err_fl?'#ef4444':'#16a34a'}">${s.err_fl ?? '–'}</span>`],
+                    ['Front-Right', `<span class="rs-value" style="color:${s.err_fr?'#ef4444':'#16a34a'}">${s.err_fr ?? '–'}</span>`],
+                    ['Back-Left',   `<span class="rs-value" style="color:${s.err_bl?'#ef4444':'#16a34a'}">${s.err_bl ?? '–'}</span>`],
+                    ['Back-Right',  `<span class="rs-value" style="color:${s.err_br?'#ef4444':'#16a34a'}">${s.err_br ?? '–'}</span>`],
+                ]),
                 group('Servos (ticks)', [
                     ['Head (neck)',     rsVal(s.pos_n)],
                     ['Grabber Left',   rsVal(s.pos_gl)],

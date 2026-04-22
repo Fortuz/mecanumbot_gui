@@ -19,7 +19,8 @@ except ImportError:
 from mecanumbot_msgs.srv import GetRobotActions
 from mecanumbot_msgs.srv import SetLedStatus, GetLedStatus
 from mecanumbot_msgs.srv import (
-    GetMappings, SaveMapping, DeleteRobotMapping, ApplyMapping,
+    GetMappingNames, GetMappingDetails,
+    SaveMapping, DeleteRobotMapping, ApplyMapping,
     SaveRobotAction, DeleteRobotAction,
 )
 from mecanumbot_msgs.srv import (
@@ -152,7 +153,8 @@ class DockerNode(Node):
         self._get_robot_actions_client = self.create_client(GetRobotActions, '/mecanumbot/get_robot_actions')
 
         # ── New mapping/action management service clients ─────────────────────
-        self._get_mappings_client    = self.create_client(GetMappings,        '/mecanumbot/get_mappings')
+        self._get_mapping_names_client   = self.create_client(GetMappingNames,   '/mecanumbot/get_mapping_names')
+        self._get_mapping_details_client = self.create_client(GetMappingDetails, '/mecanumbot/get_mapping_details')
         self._save_mapping_client    = self.create_client(SaveMapping,        '/mecanumbot/save_mapping')
         self._del_mapping_client     = self.create_client(DeleteRobotMapping, '/mecanumbot/delete_mapping')
         self._apply_mapping_client   = self.create_client(ApplyMapping,       '/mecanumbot/apply_mapping')
@@ -260,6 +262,8 @@ class DockerNode(Node):
                 'pos_fl': msg.pos_fl, 'pos_fr': msg.pos_fr,
                 'curr_bl': msg.curr_bl, 'curr_br': msg.curr_br,
                 'curr_fl': msg.curr_fl, 'curr_fr': msg.curr_fr,
+                'err_bl': msg.err_bl, 'err_br': msg.err_br,
+                'err_fl': msg.err_fl, 'err_fr': msg.err_fr,
                 'pos_n': msg.pos_n, 'pos_gl': msg.pos_gl, 'pos_gr': msg.pos_gr,
                 'battery_voltage': round(msg.battery_voltage, 3),
                 'imu_angular_vel_x': round(msg.imu_angular_vel_x, 4),
@@ -554,9 +558,6 @@ class DockerNode(Node):
         """Fetch all actions stored in the robot's local DB for the given user.
         Returns (actions_dict | None, error_str | None).
         """
-       # if not ROBOT_ACTIVE:
-        #    return None, 'Robot not connected'
-
         req           = GetRobotActions.Request()
         req.user_name = user_name
 
@@ -564,16 +565,11 @@ class DockerNode(Node):
         if result is None:
             return None, 'GetRobotActions service timed out'
 
-        try:
-            resp = result
-        except Exception as e:
-            return None, str(e)
-
-        if not resp.success:
+        if not result.success:
             return None, 'Robot returned failure for GetRobotActions'
 
         actions = {}
-        for name, atype, aj in zip(resp.action_names, resp.action_types, resp.actions_json):
+        for name, atype, aj in zip(result.action_names, result.action_types, result.actions_json):
             try:
                 data = json.loads(aj)
                 actions[name] = {'type': atype, 'tuples': data.get('tuples', [])}
@@ -599,24 +595,34 @@ class DockerNode(Node):
         except Exception:
             return None
 
-    def get_robot_mappings(self):
-        """Return (list_of_mapping_dicts, error_str).
-        Each dict: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
-        """
-        req           = GetMappings.Request()
+    def get_robot_mapping_names(self):
+        """Return (list_of_name_strings, error_str)."""
+        req           = GetMappingNames.Request()
         req.user_name = CURRENT_USER.get("name") or ""
-        result = self._call_service(self._get_mappings_client, req)
+        result = self._call_service(self._get_mapping_names_client, req)
         if result is None:
-            return [], 'GetMappings timed out — robot offline?'
+            return [], 'GetMappingNames timed out — robot offline?'
         if not result.success:
             return [], result.message
-        mappings = []
-        for mj in result.mappings_json:
-            try:
-                mappings.append(json.loads(mj))
-            except Exception:
-                pass
-        return mappings, ''
+        return list(result.mapping_names), ''
+
+    def get_robot_mapping_details(self, mapping_name: str):
+        """Return (mapping_dict, error_str).
+        mapping_dict: {name, buttons:[{button,action,trigger_mode}], joysticks:[{joystick,action}]}
+        """
+        req              = GetMappingDetails.Request()
+        req.user_name    = CURRENT_USER.get("name") or ""
+        req.mapping_name = mapping_name
+        result = self._call_service(self._get_mapping_details_client, req)
+        if result is None:
+            return None, 'GetMappingDetails timed out — robot offline?'
+        if not result.success:
+            return None, result.message
+        try:
+            mapping = json.loads(result.mapping_json) if result.mapping_json else {}
+        except Exception:
+            mapping = {}
+        return mapping, ''
 
     def save_mapping_to_robot(self, mapping_name: str,
                               button_entries: list,
@@ -683,8 +689,8 @@ class DockerNode(Node):
             req.actions = self._build_action_descriptors(actions_dict or {})
         result = self._call_service(self._apply_mapping_client, req)
         if result is None:
-            return False, 'ApplyMapping timed out — robot offline?'
-        return result.success, result.message
+            return False, 'ApplyMapping timed out — robot offline?', 0, 0
+        return result.success, result.message, result.loaded_button_count, result.loaded_joystick_count
 
     def save_action_to_robot(self, name: str, action_type: str, tuples: list,
                              overwrite: bool = False):

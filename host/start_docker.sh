@@ -56,6 +56,7 @@ sudo docker run -d \
     -e ROS_DOMAIN_ID=19 \
     -e ROS_LOCALHOST_ONLY=0 \
     -v ~/Documents:/host_docs \
+    -v ~/Documents/mecanumbot_ws:/ws\
     mecanumbot-gui
 
 if [ $? -ne 0 ]; then
