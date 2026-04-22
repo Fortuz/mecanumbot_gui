@@ -28,15 +28,25 @@ COPY host/docker_node.py /app/docker_node.py
 EXPOSE 8080
 
 # The startup script runs EVERY TIME the container starts.
-# It navigates to the mounted /ws, builds it, sources it, and runs the Flask app.
-RUN echo '#!/bin/bash\n\
+# It builds /ws (the mounted mecanumbot_msgs workspace) if not yet built,
+# sources it, then starts the Flask app.
+# printf is used instead of echo to guarantee real newlines in the script.
+# --log-base is a global colcon flag and must come BEFORE the subcommand.
+RUN printf '#!/bin/bash\n\
 export ROS_SUPER_CLIENT=true\n\
 source /opt/ros/humble/setup.bash\n\
-cd /ws\n\
-colcon build\n\
+if [ ! -f /ws/install/setup.bash ]; then\n\
+    echo "[start.sh] Building /ws with colcon..."\n\
+    cd /ws\n\
+    colcon --log-base /tmp/colcon_log build\n\
+    if [ $? -ne 0 ]; then\n\
+        echo "[start.sh] ERROR: colcon build failed -- mecanumbot_msgs unavailable"\n\
+        exit 1\n\
+    fi\n\
+fi\n\
 source /ws/install/setup.bash\n\
 cd /app\n\
-python3 app.py\n\
+exec python3 app.py\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 CMD ["/bin/bash", "/app/start.sh"]
