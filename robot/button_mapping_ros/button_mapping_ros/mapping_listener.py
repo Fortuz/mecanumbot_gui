@@ -51,6 +51,8 @@ import os
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 from std_msgs.msg import String, Bool
 from geometry_msgs.msg import Twist
 
@@ -97,6 +99,14 @@ class MappingListener(Node):
     def __init__(self, db: IDatabase):
         super().__init__('mapping_listener')
 
+        # ── Callback groups ───────────────────────────────────────────────────
+        # Service callbacks use a reentrant group so they can execute
+        # concurrently with each other and with subscription callbacks.
+        # Controller subscriptions use a separate exclusive group to ensure
+        # button/joystick events are processed in order.
+        self._svc_cbg  = ReentrantCallbackGroup()
+        self._ctrl_cbg = MutuallyExclusiveCallbackGroup()
+
         # ── Database ──────────────────────────────────────────────────────────
         self._db = db
 
@@ -127,10 +137,12 @@ class MappingListener(Node):
         if MECANUMBOT_MSGS_AVAILABLE:
             self.create_subscription(
                 ButtonEvent, '/xbox_controller/button_events',
-                self.xbox_button_callback, 10)
+                self.xbox_button_callback, 10,
+                callback_group=self._ctrl_cbg)
             self.create_subscription(
                 JoystickEvent, '/xbox_controller/joystick_events',
-                self.xbox_joystick_callback, 10)
+                self.xbox_joystick_callback, 10,
+                callback_group=self._ctrl_cbg)
         else:
             self.get_logger().warn(
                 'mecanumbot_msgs not available — controller subscriptions disabled')
@@ -140,29 +152,30 @@ class MappingListener(Node):
             self._get_robot_actions_srv = self.create_service(
                 GetRobotActions,
                 '/mecanumbot/get_robot_actions',
-                self._get_robot_actions_callback
+                self._get_robot_actions_callback,
+                callback_group=self._svc_cbg,
             )
             # ── New persistent mapping/action management services ──────────────
             self._get_mapping_names_srv = self.create_service(
-                GetMappingNames,    '/mecanumbot/get_mapping_names',   self._get_mapping_names_callback)
+                GetMappingNames,    '/mecanumbot/get_mapping_names',   self._get_mapping_names_callback,   callback_group=self._svc_cbg)
             self._get_mapping_details_srv = self.create_service(
-                GetMappingDetails,  '/mecanumbot/get_mapping_details', self._get_mapping_details_callback)
+                GetMappingDetails,  '/mecanumbot/get_mapping_details', self._get_mapping_details_callback, callback_group=self._svc_cbg)
             self._save_mapping_srv  = self.create_service(
-                SaveMapping,        '/mecanumbot/save_mapping',   self._save_mapping_callback)
+                SaveMapping,        '/mecanumbot/save_mapping',   self._save_mapping_callback,   callback_group=self._svc_cbg)
             self._del_mapping_srv   = self.create_service(
-                DeleteRobotMapping, '/mecanumbot/delete_mapping', self._delete_mapping_callback)
+                DeleteRobotMapping, '/mecanumbot/delete_mapping', self._delete_mapping_callback, callback_group=self._svc_cbg)
             self._apply_mapping_srv = self.create_service(
-                ApplyMapping,       '/mecanumbot/apply_mapping',  self._apply_mapping_callback)
+                ApplyMapping,       '/mecanumbot/apply_mapping',  self._apply_mapping_callback,  callback_group=self._svc_cbg)
             self._save_action_srv   = self.create_service(
-                SaveRobotAction,    '/mecanumbot/save_action',    self._save_robot_action_callback)
+                SaveRobotAction,    '/mecanumbot/save_action',    self._save_robot_action_callback, callback_group=self._svc_cbg)
             self._del_action_srv    = self.create_service(
-                DeleteRobotAction,  '/mecanumbot/delete_action',  self._delete_robot_action_callback)
+                DeleteRobotAction,  '/mecanumbot/delete_action',  self._delete_robot_action_callback, callback_group=self._svc_cbg)
             self._get_schemes_srv = self.create_service(
-                GetRecordingSchemes, '/mecanumbot/get_recording_schemes', self._get_recording_schemes_callback)
+                GetRecordingSchemes, '/mecanumbot/get_recording_schemes',   self._get_recording_schemes_callback,   callback_group=self._svc_cbg)
             self._save_scheme_srv = self.create_service(
-                SaveRecordingScheme, '/mecanumbot/save_recording_scheme', self._save_recording_scheme_callback)
+                SaveRecordingScheme, '/mecanumbot/save_recording_scheme',  self._save_recording_scheme_callback,  callback_group=self._svc_cbg)
             self._del_scheme_srv  = self.create_service(
-                DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme', self._delete_recording_scheme_callback)
+                DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme', self._delete_recording_scheme_callback, callback_group=self._svc_cbg)
             self.get_logger().info(
                 'Services ready: /mecanumbot/get_robot_actions, '
                 'get_mapping_names, get_mapping_details, save_mapping, delete_mapping, apply_mapping, '
@@ -866,8 +879,10 @@ def main(args=None, db: IDatabase = None):
             return
 
     node = MappingListener(db)
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     finally:
