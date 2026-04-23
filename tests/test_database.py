@@ -180,6 +180,40 @@ class TestMappings:
         assert len(db.get_all_mappings(uid_b)) == 0
 
 
+class TestButtonMappings:
+
+    def test_delete_action_cascades_to_button_mapping(self, db):
+        uid = db.get_or_create_user('alice')
+        db.save_action(uid, 'grab', [], 'button_once')
+        db.save_action(uid, 'stop', [], 'button_once')
+        db.save_mapping(uid, 'Config', [('A', 'grab', 'once'), ('B', 'stop', 'once')], [])
+
+        db.delete_action(uid, 'grab')
+
+        m = db.get_mapping(uid, 'Config')
+        assert m is not None
+        button_names = [b['button'] for b in m['buttons']]
+        assert 'A' not in button_names, "Button entry referencing deleted action should be removed"
+        assert 'B' in button_names, "Button entry for surviving action should remain"
+
+
+class TestJoystickMappings:
+
+    def test_delete_action_cascades_to_joystick_mapping(self, db):
+        uid = db.get_or_create_user('alice')
+        db.save_action(uid, 'drive', [], 'joystick')
+        db.save_action(uid, 'steer', [], 'joystick')
+        db.save_mapping(uid, 'DriveConfig', [], [('Left Stick', 'drive'), ('Right Stick', 'steer')])
+
+        db.delete_action(uid, 'drive')
+
+        m = db.get_mapping(uid, 'DriveConfig')
+        assert m is not None
+        joy_names = [j['joystick'] for j in m['joysticks']]
+        assert 'Left Stick' not in joy_names, "Joystick entry referencing deleted action should be removed"
+        assert 'Right Stick' in joy_names, "Joystick entry for surviving action should remain"
+
+
 # ── Recording schemes ─────────────────────────────────────────────────────────
 
 class TestRecordingSchemes:
