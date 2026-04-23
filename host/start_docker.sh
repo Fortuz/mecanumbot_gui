@@ -39,10 +39,12 @@ fi
 echo "✓ Image built successfully."
 echo ""
 
-# Ensure the host Documents directory exists and is owned by the current user
-# before Docker mounts it (Docker auto-creates missing mount dirs as root).
-mkdir -p ~/Documents
-sudo chown -R "$(id -u):$(id -g)" ~/Documents
+# Ensure the host workspace directory exists and is owned by the current user
+# BEFORE running docker — if Docker creates a missing bind-mount target it
+# creates it as root, which breaks colcon (Permission denied writing log/).
+mkdir -p ~/Documents/mecanumbot_ws
+sudo chown -R "$(id -u):$(id -g)" ~/Documents/mecanumbot_ws
+
 
 # Start Docker container (foreground-attached via logs, not -d)
 echo "Starting mecanumbot-gui container..."
@@ -56,7 +58,7 @@ sudo docker run -d \
     -e ROS_DOMAIN_ID=19 \
     -e ROS_LOCALHOST_ONLY=0 \
     -v ~/Documents:/host_docs \
-    -v ~/Documents/mecanumbot_ws:/ws\
+    -v $ROS_WS_DIR:/ws\
     mecanumbot-gui
 
 if [ $? -ne 0 ]; then

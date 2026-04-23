@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-ament-cmake \
     ros-humble-rosidl-default-generators \
     ros-humble-rosidl-default-runtime \
+    ros-humble-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -32,6 +33,10 @@ EXPOSE 8080
 # sources it, then starts the Flask app.
 # printf is used instead of echo to guarantee real newlines in the script.
 # --log-base is a global colcon flag and must come BEFORE the subcommand.
+
+# add cycloneDDS
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
 RUN printf '#!/bin/bash\n\
 export ROS_SUPER_CLIENT=true\n\
 source /opt/ros/humble/setup.bash\n\
