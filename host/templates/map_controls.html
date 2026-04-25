@@ -546,6 +546,17 @@
         async function modifyMapping(name, side) {
             let data = side === 'robot' ? _robotMappings[name] : _hostMappings[name];
 
+            // Guard: check robot reachability BEFORE attempting a detail fetch,
+            // so the user sees the meaningful error instead of a generic network failure.
+            if (side === 'robot' && !_robotActionsLoaded) {
+                showToast('⚠ Robot actions not yet loaded — please wait a moment and try again.', 'warning');
+                return;
+            }
+            if (side === 'robot' && _robotActionsError) {
+                showToast(`⚠ Could not reach robot: ${_robotActionsError}`, 'error');
+                return;
+            }
+
             // Robot mapping with no cached detail yet — fetch now
             if (side === 'robot' && !data) {
                 showToast('Fetching mapping details from robot…', 'warning');
@@ -563,17 +574,6 @@
                     showToast('Failed to fetch mapping details: ' + e.message, 'error');
                     return;
                 }
-            }
-
-            // Guard: if the robot action list hasn't loaded yet, the action dropdowns
-            // will be empty and every button assignment will be silently dropped on save.
-            if (side === 'robot' && !_robotActionsLoaded) {
-                showToast('⚠ Robot actions not yet loaded — please wait a moment and try again.', 'warning');
-                return;
-            }
-            if (side === 'robot' && _robotActionsError) {
-                showToast(`⚠ Could not reach robot: ${_robotActionsError}`, 'error');
-                return;
             }
 
             // Set destination BEFORE adding rows so action dropdowns show the right side
