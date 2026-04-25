@@ -447,6 +447,9 @@
                 showToast('Add at least one button or joystick assignment', 'error'); return;
             }
 
+            // Capture before anything can mutate the editing state (e.g. cancelEdit)
+            const wasEditing = !!_editingMappingName;
+
             // If editing the same mapping name on the same side, force overwrite
             if (_editingMappingName === name && _editingMappingSide === dest) {
                 overwrite = true;
@@ -468,7 +471,7 @@
                 // Handle conflict (409)
                 if (resp.status === 409 && data.error && data.error.includes('already exists') && !overwrite) {
                     btn.disabled = false;
-                    btn.textContent = _editingMappingName ? 'Update Mapping' : 'Save Mapping';
+                    btn.textContent = wasEditing ? 'Update Mapping' : 'Save Mapping';
                     if (confirm(data.error + '\n\nOverwrite the existing mapping?')) {
                         await saveMapping(true);
                     }
@@ -490,7 +493,7 @@
                 showToast('Network error: ' + e.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = _editingMappingName ? 'Update Mapping' : 'Save Mapping';
+                btn.textContent = wasEditing ? 'Update Mapping' : 'Save Mapping';
             }
         }
 
@@ -502,10 +505,12 @@
             // Host-side mapping: include full button/joystick data inline
             if (!fromRobot) {
                 const data = _hostMappings[name];
-                if (data) {
-                    payload.buttons   = data.buttons   || [];
-                    payload.joysticks = data.joysticks || [];
+                if (!data) {
+                    showToast('⚠ Host mapping data not yet loaded — please wait and try again.', 'warning');
+                    return;
                 }
+                payload.buttons   = data.buttons   || [];
+                payload.joysticks = data.joysticks || [];
             }
 
             try {
