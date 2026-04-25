@@ -171,25 +171,38 @@
             document.getElementById('host-mapping-list').innerHTML  = '<div class="empty-state"><p>Loading…</p></div>';
             document.getElementById('robot-mapping-list').innerHTML = '<div class="empty-state"><p>Loading…</p></div>';
             try {
-                const [hostResp, robotResp] = await Promise.all([
+                // Use allSettled so a robot-offline network error doesn't
+                // prevent the host mapping list from rendering.
+                const [hostResult, robotResult] = await Promise.allSettled([
                     fetch('/api/mappings'),
                     fetch('/api/robot/mapping-names'),
                 ]);
-                const hostData  = await hostResp.json();
-                const robotData = await robotResp.json();
 
-                _hostMappings = {};
-                for (const m of (Array.isArray(hostData) ? hostData : [])) {
-                    _hostMappings[m.name] = m;
+                // ── Host mappings ─────────────────────────────────────────────
+                if (hostResult.status === 'fulfilled') {
+                    const hostData = await hostResult.value.json();
+                    _hostMappings = {};
+                    for (const m of (Array.isArray(hostData) ? hostData : [])) {
+                        _hostMappings[m.name] = m;
+                    }
+                } else {
+                    document.getElementById('host-mapping-list').innerHTML =
+                        `<div class="empty-state"><p style="color:#dc2626;">Failed to load host mappings: ${escHtml(hostResult.reason?.message ?? 'unknown error')}</p></div>`;
                 }
 
-                // Preserve any already-fetched robot detail data
-                const newRobotNames = new Set(robotData.names || []);
-                for (const name of Object.keys(_robotMappings)) {
-                    if (!newRobotNames.has(name)) delete _robotMappings[name];
-                }
-                for (const name of newRobotNames) {
-                    if (!_robotMappings[name]) _robotMappings[name] = null;
+                // ── Robot mappings ────────────────────────────────────────────
+                if (robotResult.status === 'fulfilled') {
+                    const robotData = await robotResult.value.json();
+                    const newRobotNames = new Set(robotData.names || []);
+                    for (const name of Object.keys(_robotMappings)) {
+                        if (!newRobotNames.has(name)) delete _robotMappings[name];
+                    }
+                    for (const name of newRobotNames) {
+                        if (!_robotMappings[name]) _robotMappings[name] = null;
+                    }
+                } else {
+                    document.getElementById('robot-mapping-list').innerHTML =
+                        `<div class="empty-state"><p style="color:#dc2626;">Robot offline — cannot load robot mappings.</p></div>`;
                 }
 
                 renderHostMappings();

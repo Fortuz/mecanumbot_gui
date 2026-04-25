@@ -47,6 +47,7 @@ Database
 """
 
 import json
+import logging
 import os
 
 import rclpy
@@ -182,7 +183,7 @@ class MappingListener(Node):
             self.get_logger().info(
                 'Services ready: /mecanumbot/get_robot_actions, '
                 'get_mapping_names, get_mapping_details, save_mapping, delete_mapping, apply_mapping, '
-                'save_action, delete_action, '
+                'save_action, delete_action, get_action_usages, '
                 'get_recording_schemes, save_recording_scheme, delete_recording_scheme')
 
             # ── LED set service client ─────────────────────────────────────────
@@ -688,9 +689,10 @@ class MappingListener(Node):
                 self.get_logger().warn(f'Action "{action_name}" not configured')
                 return
 
-            # Derive trigger mode from action type (button_once → once, button_hold → hold)
-            action_type = self.actions[action_name].get('type', 'button_once')
-            trigger_mode = 'hold' if action_type == 'button_hold' else 'once'
+            # Use the per-button trigger_mode stored when the mapping was applied.
+            # This respects the user-configured value (e.g. 'once' or 'hold')
+            # rather than inferring it from the action type alone.
+            trigger_mode = mapping_info.get('trigger_mode', 'once')
 
             if trigger_mode == 'once' and event_type == 'PRESSED':
                 self.publish_action(action_name, button_name)
@@ -863,39 +865,35 @@ def main(args=None, db: IDatabase = None):
         try:
             db = Database(db_path)
         except DatabaseDirectoryError as e:
-            print(
-                f'\n[FATAL] Database directory missing or could not be created.\n'
-                f'  {e}\n'
-                f'  Make sure ~/Documents exists on the robot:\n'
-                f'      mkdir -p ~/Documents\n',
-                flush=True,
+            logging.critical(
+                '[FATAL] Database directory missing or could not be created.\n'
+                '  %s\n'
+                '  Make sure ~/Documents exists on the robot:\n'
+                '      mkdir -p ~/Documents', e,
             )
             rclpy.shutdown()
             return
         except DatabasePermissionError as e:
-            print(
-                f'\n[FATAL] Database directory is not writable.\n'
-                f'  {e}\n'
-                f'  Fix permissions:\n'
-                f'      chmod 755 ~/Documents\n',
-                flush=True,
+            logging.critical(
+                '[FATAL] Database directory is not writable.\n'
+                '  %s\n'
+                '  Fix permissions:\n'
+                '      chmod 755 ~/Documents', e,
             )
             rclpy.shutdown()
             return
         except DatabaseSchemaError as e:
-            print(
-                f'\n[FATAL] Database schema is outdated or corrupt.\n'
-                f'  {e}\n'
-                f'  A fresh database will be created automatically on next start.\n',
-                flush=True,
+            logging.critical(
+                '[FATAL] Database schema is outdated or corrupt.\n'
+                '  %s\n'
+                '  A fresh database will be created automatically on next start.', e,
             )
             rclpy.shutdown()
             return
         except DatabaseConnectionError as e:
-            print(
-                f'\n[FATAL] Could not connect to the database.\n'
-                f'  {e}\n',
-                flush=True,
+            logging.critical(
+                '[FATAL] Could not connect to the database.\n'
+                '  %s', e,
             )
             rclpy.shutdown()
             return

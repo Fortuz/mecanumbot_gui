@@ -19,38 +19,8 @@ Schema
   action_tuples
       id           INTEGER PK AUTOINCREMENT
       action_id    INTEGER FK → actions.id  ON DELETE CASCADE
-      topic        TEXT NOT     def delete_action(self, user_id: int, name: str) -> bool:
-        try:
-            with self._connect() as conn:
-                c = conn.cursor()
-                # Resolve the action id for the given user/name. If it doesn't
-                # exist there's nothing to do.
-                c.execute(
-                    "SELECT id FROM actions WHERE user_id = ? AND name = ?",
-                    (user_id, name)
-                )
-                row = c.fetchone()
-                if not row:
-                    return True
-                action_id = row[0]
-
-                # Explicitly delete any mapping references that point to this
-                # action. The schema already defines ON DELETE CASCADE but
-                # some SQLite connections may not have foreign_keys enabled in
-                # all contexts, so be defensive and remove dependent rows here.
-                c.execute("DELETE FROM mapping_buttons   WHERE action_id = ?", (action_id,))
-                c.execute("DELETE FROM mapping_joysticks WHERE action_id = ?", (action_id,))
-
-                # Remove stored tuples for the action as well.
-                c.execute("DELETE FROM action_tuples WHERE action_id = ?", (action_id,))
-
-                # Finally remove the action itself.
-                c.execute("DELETE FROM actions WHERE id = ?", (action_id,))
-                conn.commit()
-            return True
-        except Exception as e:
-            print(f"[DB] Error deleting action '{name}' for user {user_id}: {e}")
-            return Falseessage      TEXT NOT NULL
+      topic        TEXT NOT NULL
+      message      TEXT NOT NULL
       message_type TEXT NOT NULL DEFAULT 'std_msgs/msg/String'
       tuple_order  INTEGER NOT NULL
       scale_x      REAL NOT NULL DEFAULT 1.0
@@ -461,6 +431,27 @@ class Database(IDatabase):
         except Exception as e:
             print(f"[DB] Error loading actions for user {user_id}: {e}")
         return actions
+
+    def get_mappings_using_action(self, user_id: int, action_name: str) -> list:
+        """Return names of all mappings that reference the given action name."""
+        try:
+            with self._connect() as conn:
+                c = conn.cursor()
+                c.execute(
+                    """SELECT DISTINCT m.name
+                         FROM mappings m
+                         JOIN actions a ON a.user_id = m.user_id AND a.name = ?
+                    LEFT JOIN mapping_buttons   mb ON mb.mapping_id = m.id AND mb.action_id = a.id
+                    LEFT JOIN mapping_joysticks mj ON mj.mapping_id = m.id AND mj.action_id = a.id
+                        WHERE m.user_id = ?
+                          AND (mb.id IS NOT NULL OR mj.id IS NOT NULL)
+                        ORDER BY m.name""",
+                    (action_name, user_id)
+                )
+                return [row[0] for row in c.fetchall()]
+        except Exception as e:
+            print(f"[DB] Error getting mappings using action '{action_name}': {e}")
+            return []
 
     def delete_action(self, user_id: int, name: str) -> bool:
         try:
