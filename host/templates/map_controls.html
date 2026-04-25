@@ -306,6 +306,10 @@
                         if (a.type === 'joystick') _robotJoyActions.push({ name: a.name, type: a.type });
                         else                        _robotBtnActions.push({ name: a.name, type: a.type });
                     }
+                } else if (!resp.ok) {
+                    _robotActionsError = `Server error ${resp.status}`;
+                } else {
+                    _robotActionsError = 'Unexpected response from robot action API';
                 }
             } catch (e) {
                 _robotActionsError = e.message || 'Network error';
