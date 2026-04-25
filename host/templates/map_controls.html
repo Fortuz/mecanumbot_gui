@@ -191,24 +191,31 @@
                 }
 
                 // ── Robot mappings ────────────────────────────────────────────
+                let _robotFetchOk = false;
                 if (robotResult.status === 'fulfilled') {
                     const robotData = await robotResult.value.json();
-                    const newRobotNames = new Set(robotData.names || []);
-                    for (const name of Object.keys(_robotMappings)) {
-                        if (!newRobotNames.has(name)) delete _robotMappings[name];
-                    }
-                    for (const name of newRobotNames) {
-                        if (!_robotMappings[name]) _robotMappings[name] = null;
+                    if (robotData.error) {
+                        document.getElementById('robot-mapping-list').innerHTML =
+                            `<div class="empty-state"><p style="color:#b91c1c;">⚠ Could not reach robot: ${escHtml(robotData.error)}</p></div>`;
+                    } else {
+                        const newRobotNames = new Set(robotData.names || []);
+                        for (const name of Object.keys(_robotMappings)) {
+                            if (!newRobotNames.has(name)) delete _robotMappings[name];
+                        }
+                        for (const name of newRobotNames) {
+                            if (!_robotMappings[name]) _robotMappings[name] = null;
+                        }
+                        _robotFetchOk = true;
                     }
                 } else {
                     document.getElementById('robot-mapping-list').innerHTML =
-                        `<div class="empty-state"><p style="color:#dc2626;">Robot offline — cannot load robot mappings.</p></div>`;
+                        `<div class="empty-state"><p style="color:#b91c1c;">⚠ Could not reach robot: ${escHtml(robotResult.reason?.message ?? 'unknown error')}</p></div>`;
                 }
 
                 // Only re-render each side if it was successfully fetched;
                 // the error branch already set the innerHTML above.
-                if (hostResult.status  === 'fulfilled') renderHostMappings();
-                if (robotResult.status === 'fulfilled') renderRobotMappings();
+                if (hostResult.status === 'fulfilled') renderHostMappings();
+                if (_robotFetchOk) renderRobotMappings();
             } catch(e) {
                 const msg = `<div class="empty-state"><p style="color:#dc2626;">Failed to load: ${escHtml(e.message)}</p></div>`;
                 document.getElementById('host-mapping-list').innerHTML  = msg;
