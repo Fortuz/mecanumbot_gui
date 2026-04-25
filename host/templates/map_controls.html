@@ -427,7 +427,7 @@
                     btn.disabled = false;
                     btn.textContent = _editingMappingName ? 'Update Mapping' : 'Save Mapping';
                     if (confirm(data.error + '\n\nOverwrite the existing mapping?')) {
-                        saveMapping(true);
+                        await saveMapping(true);
                     }
                     return;
                 }
