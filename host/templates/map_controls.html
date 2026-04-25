@@ -331,6 +331,17 @@
 
         // Called when the user changes the destination dropdown
         function onDestinationChange() {
+            // If destination changes while editing, the cached side is now stale —
+            // reset the edit state so a save doesn't silently overwrite the wrong mapping.
+            // We keep the name input and rows intentionally blank (cleared below) so the
+            // user can start a fresh mapping without losing the typed name.
+            if (_editingMappingName) {
+                _editingMappingName = null;
+                _editingMappingSide = null;
+                document.getElementById('form-title').textContent = 'New Mapping';
+                document.getElementById('save-mapping-btn').textContent = 'Save Mapping';
+                document.getElementById('cancel-edit-btn').style.display = 'none';
+            }
             // Clear all rows — actions from the other side are no longer valid
             document.getElementById('btn-rows').innerHTML = '';
             document.getElementById('joy-rows').innerHTML = '';
@@ -542,6 +553,9 @@
                 const data = await resp.json();
                 if (data.success) {
                     showToast(`Mapping "${name}" deleted from ${side} DB`, 'success');
+                    // If the deleted mapping was the one being edited, cancel that edit
+                    // so the form doesn't silently re-create it on the next "Update Mapping" click.
+                    if (_editingMappingName === name && _editingMappingSide === side) cancelEdit();
                     await loadMappings();
                 } else {
                     showToast('Delete failed: ' + (data.message || data.error || ''), 'error');
