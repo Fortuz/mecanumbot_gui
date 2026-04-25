@@ -276,7 +276,8 @@
         }
 
         // ── Load actions from host + robot (stored separately) ────────────────
-        let _robotActionsError = '';   // non-empty when robot action fetch failed
+        let _robotActionsError  = '';    // non-empty when robot action fetch failed
+        let _robotActionsLoaded = false; // true once loadActionsForMapping() has completed
 
         async function loadActionsForMapping() {
             _hostBtnActions = Object.entries(BTN_ACTIONS).map(([name, d]) => ({
@@ -289,6 +290,7 @@
             // Reset robot action lists before re-fetching to avoid duplicates
             _robotBtnActions = [];
             _robotJoyActions = [];
+            _robotActionsLoaded = false;
 
             // Fetch robot actions (best-effort — store error string if offline)
             try {
@@ -307,6 +309,7 @@
                 _robotActionsError = e.message || 'Network error';
             }
 
+            _robotActionsLoaded = true;
             _updateAllActionDropdowns();
         }
 
@@ -562,12 +565,12 @@
 
             // Guard: if the robot action list hasn't loaded yet, the action dropdowns
             // will be empty and every button assignment will be silently dropped on save.
-            if (side === 'robot' && _robotBtnActions.length === 0 && _robotJoyActions.length === 0) {
-                if (_robotActionsError) {
-                    showToast(`⚠ Could not reach robot: ${_robotActionsError}`, 'error');
-                } else {
-                    showToast('⚠ Robot actions not yet loaded — please wait a moment and try again.', 'warning');
-                }
+            if (side === 'robot' && !_robotActionsLoaded) {
+                showToast('⚠ Robot actions not yet loaded — please wait a moment and try again.', 'warning');
+                return;
+            }
+            if (side === 'robot' && _robotActionsError) {
+                showToast(`⚠ Could not reach robot: ${_robotActionsError}`, 'error');
                 return;
             }
 
