@@ -205,8 +205,10 @@
                         `<div class="empty-state"><p style="color:#dc2626;">Robot offline — cannot load robot mappings.</p></div>`;
                 }
 
-                renderHostMappings();
-                renderRobotMappings();
+                // Only re-render each side if it was successfully fetched;
+                // the error branch already set the innerHTML above.
+                if (hostResult.status  === 'fulfilled') renderHostMappings();
+                if (robotResult.status === 'fulfilled') renderRobotMappings();
             } catch(e) {
                 const msg = `<div class="empty-state"><p style="color:#dc2626;">Failed to load: ${escHtml(e.message)}</p></div>`;
                 document.getElementById('host-mapping-list').innerHTML  = msg;
@@ -374,7 +376,13 @@
                 const id  = tr.id;
                 const btn = document.getElementById(id+'-btn')?.value;
                 const act = document.getElementById(id+'-act')?.value;
-                if (btn && act) buttons.push({ button: btn, action: act });
+                if (btn && act) {
+                    // Auto-derive trigger_mode from the action type so that
+                    // button_hold actions fire continuously while held.
+                    const actionData  = _activeBtnActions().find(a => a.name === act);
+                    const triggerMode = (actionData?.type === 'button_hold') ? 'hold' : 'once';
+                    buttons.push({ button: btn, action: act, trigger_mode: triggerMode });
+                }
             }
 
             const joysticks = [];
