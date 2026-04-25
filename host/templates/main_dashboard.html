@@ -1029,9 +1029,13 @@
             return `<span class="rs-value">${n}${unit}</span>`;
         }
 
-        // 3S LiPo: ~12.6 V full, ~9.9 V empty
-        const BAT_MAX = 12.6, BAT_MIN = 9.9;
-        const BAT_WARN = 11.0, BAT_CRIT = 10.2;
+        // Battery thresholds — sourced from mecanumbot_description/param/mecanumbot.yaml
+        // max_voltage: 12.6 V (full charge), min_voltage: 11.0 V (operating minimum)
+        // absolute empty: 9.9 V (mecanumbot_sensorproc_node default — used for % calc only)
+        const BAT_MAX  = 12.6;   // full charge [V]
+        const BAT_MIN  = 9.9;    // absolute empty — for percentage bar only [V]
+        const BAT_CRIT = 11.0;   // robot's declared min_voltage — critical alert
+        const BAT_WARN = 11.5;   // early warning — start charging soon
         let _batLowAlerted = false;   // fire popup at most once until recovered
 
         function rsBattery(v) {

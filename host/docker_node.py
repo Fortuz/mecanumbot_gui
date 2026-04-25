@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import logging
 import threading
 from datetime import datetime
 
@@ -30,6 +31,13 @@ from mecanumbot_msgs.srv import (
 from mecanumbot_msgs.msg import (ActionTuple, ActionDescriptor,
                                  ControllerStatus, ButtonEvent, JoystickEvent,
                                  OpenCRState)
+
+# ──────────────────────────────────────────────────────────────
+# Module logger (used outside the ROS2 node, e.g. _start_docker_node)
+# ──────────────────────────────────────────────────────────────
+_log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 
 # ──────────────────────────────────────────────────────────────
 # Shared globals — written by DockerNode thread, read by Flask.
@@ -583,7 +591,9 @@ class DockerNode(Node):
     # ── New mapping/action management services ────────────────────────────────
 
     def _call_service(self, client, request, timeout=15.0):
-        """Generic helper: call a service client and return (result | None)."""
+        """Generic helper: call a service client and return (result | None).
+        Returns None on timeout or exception; both are logged.
+        """
         event  = threading.Event()
         future = client.call_async(request)
         future.add_done_callback(lambda _: event.set())
@@ -591,10 +601,15 @@ class DockerNode(Node):
         if future.done():
             event.set()
         if not event.wait(timeout=timeout):
+            svc = getattr(client, 'srv_name', str(client))
+            self.get_logger().warning(
+                f'Service call timed out after {timeout:.1f}s: {svc}')
             return None
         try:
             return future.result()
         except Exception:
+            svc = getattr(client, 'srv_name', str(client))
+            self.get_logger().exception(f'Service call raised an exception: {svc}')
             return None
 
     def get_robot_mapping_names(self):
@@ -858,5 +873,5 @@ def _start_docker_node(db):
         executor.spin()
         node.destroy_node()
         rclpy.shutdown()
-    except Exception as e:
-        print(f"[DockerNode] Failed to start: {e}")
+    except Exception:
+        _log.exception('[DockerNode] Failed to start')
