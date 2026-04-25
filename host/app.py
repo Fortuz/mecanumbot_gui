@@ -589,6 +589,14 @@ class FlaskApp:
         def api_led_get():
             if self._node() is None:
                 return jsonify({"success": False, "error": "ROS2 node not running"}), 503
+            # Short-circuit when the robot is offline to avoid blocking the Flask
+            # thread for the full 8-second service timeout on every 5-second poll.
+            if not docker_node.ROBOT_ACTIVE:
+                with docker_node._led_lock:
+                    cached = docker_node.LATEST_LED_STATE
+                if cached is not None:
+                    return jsonify({"success": True, "corners": cached})
+                return jsonify({"success": False, "error": "Robot offline"}), 503
             state, err = self._node().get_led_status()
             if state is None:
                 return jsonify({"success": False, "error": err}), 500

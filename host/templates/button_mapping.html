@@ -560,8 +560,8 @@
                                     <span class="action-badge ${escHtml(a.type)}"></span>
                                 </div>
                                 <div style="display:flex;gap:6px;">
-                                    <button type="button" class="btn btn-secondary" onclick="loadActionForEdit('${escHtml(a.name)}')">Modify</button>
-                                    <button type="button" class="btn btn-danger" onclick="deleteAction('${escHtml(a.name)}')">Delete</button>
+                                    <button type="button" class="btn btn-secondary" onclick="loadActionForEdit(${JSON.stringify(a.name)})">Modify</button>
+                                    <button type="button" class="btn btn-danger" onclick="deleteAction(${JSON.stringify(a.name)})">Delete</button>
                                 </div>
                             </div>`;
                         div.querySelector('.action-name').textContent = a.name;
