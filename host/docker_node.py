@@ -25,6 +25,7 @@ from mecanumbot_msgs.srv import (
 )
 from mecanumbot_msgs.srv import (
     GetRecordingSchemes, SaveRecordingScheme, DeleteRecordingScheme,
+    GetActionUsages,
 )
 from mecanumbot_msgs.msg import (ActionTuple, ActionDescriptor,
                                  ControllerStatus, ButtonEvent, JoystickEvent,
@@ -164,6 +165,7 @@ class DockerNode(Node):
         self._get_schemes_client = self.create_client(GetRecordingSchemes,   '/mecanumbot/get_recording_schemes')
         self._save_scheme_client = self.create_client(SaveRecordingScheme,   '/mecanumbot/save_recording_scheme')
         self._del_scheme_client  = self.create_client(DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme')
+        self._get_action_usages_client = self.create_client(GetActionUsages, '/mecanumbot/get_action_usages')
 
         self._led_set_client = self.create_client(SetLedStatus, '/set_led_status')
         self._led_get_client = self.create_client(GetLedStatus, '/get_led_status')
@@ -713,6 +715,18 @@ class DockerNode(Node):
         if result is None:
             return False, 'DeleteRobotAction timed out — robot offline?'
         return result.success, result.message
+
+    def get_robot_action_usages(self, action_name: str):
+        """Return list of mapping names that use the given action on the robot. Returns (list, error_str)."""
+        req             = GetActionUsages.Request()
+        req.user_name   = CURRENT_USER.get("name") or ""
+        req.action_name = action_name
+        result          = self._call_service(self._get_action_usages_client, req)
+        if result is None:
+            return [], 'GetActionUsages timed out — robot offline?'
+        if not result.success:
+            return [], result.message
+        return list(result.mapping_names), ''
 
     def _build_action_descriptor(self, name, action_type, tuples):
         desc             = ActionDescriptor()

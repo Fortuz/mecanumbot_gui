@@ -80,6 +80,7 @@ try:
         SaveMapping, DeleteRobotMapping, ApplyMapping,
         SaveRobotAction, DeleteRobotAction,
         GetRecordingSchemes, SaveRecordingScheme, DeleteRecordingScheme,
+        GetActionUsages,
     )
     MECANUMBOT_SRV_AVAILABLE = True
 except ImportError:
@@ -176,6 +177,8 @@ class MappingListener(Node):
                 SaveRecordingScheme, '/mecanumbot/save_recording_scheme',  self._save_recording_scheme_callback,  callback_group=self._svc_cbg)
             self._del_scheme_srv  = self.create_service(
                 DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme', self._delete_recording_scheme_callback, callback_group=self._svc_cbg)
+            self._get_action_usages_srv = self.create_service(
+                GetActionUsages, '/mecanumbot/get_action_usages', self._get_action_usages_callback, callback_group=self._svc_cbg)
             self.get_logger().info(
                 'Services ready: /mecanumbot/get_robot_actions, '
                 'get_mapping_names, get_mapping_details, save_mapping, delete_mapping, apply_mapping, '
@@ -531,6 +534,25 @@ class MappingListener(Node):
             response.success = False
             response.message = str(e)
             self.get_logger().error(f'DeleteRobotAction error: {e}')
+        return response
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Action usages service
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _get_action_usages_callback(self, request, response):
+        self.get_logger().info(f'GetActionUsages service called for action "{request.action_name}"')
+        try:
+            uid = self._uid_for(request.user_name)
+            mapping_names = self._db.get_mappings_using_action(uid, request.action_name)
+            response.success = True
+            response.mapping_names = list(mapping_names)
+            response.message = ''
+        except Exception as e:
+            response.success = False
+            response.mapping_names = []
+            response.message = str(e)
+            self.get_logger().error(f'GetActionUsages error: {e}')
         return response
 
     # ══════════════════════════════════════════════════════════════════════════

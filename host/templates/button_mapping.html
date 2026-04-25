@@ -1230,9 +1230,67 @@
 
         // ── Delete action via AJAX ────────────────────────────────────────────
         async function deleteAction(name) {
-            // Use save-destination toggle as destination
-            const dest = _saveDest;
-            if (!confirm(`Delete action "${name}" from ${dest}?`)) return;
+            const dest = _actionSource;
+
+            // ── 1. Fetch which mappings use this action ───────────────────
+            let hostMappings  = [];
+            let robotMappings = [];
+            let robotError    = '';
+            try {
+                const r = await fetch(
+                    '/api/actions/usages?name=' + encodeURIComponent(name) +
+                    '&destination=' + encodeURIComponent(dest)
+                );
+                const d = await r.json();
+                if (d.success) {
+                    hostMappings  = d.host_mappings  || [];
+                    robotMappings = d.robot_mappings || [];
+                    robotError    = d.robot_error    || '';
+                }
+            } catch(e) { /* non-fatal — proceed without usage info */ }
+
+            // ── 2. Build and show confirmation modal ──────────────────────
+            let usageHtml = '';
+
+            if (hostMappings.length > 0) {
+                usageHtml += `<p style="margin:10px 0 4px;font-weight:600;color:#b91c1c;">
+                                ⚠️ Used in ${hostMappings.length} host mapping(s):
+                              </p>
+                              <ul style="margin:0 0 8px 18px;color:#374151;">
+                                ${hostMappings.map(m => `<li>${escHtml(m)}</li>`).join('')}
+                              </ul>`;
+            }
+            if (robotMappings.length > 0) {
+                usageHtml += `<p style="margin:10px 0 4px;font-weight:600;color:#b45309;">
+                                ⚠️ Used in ${robotMappings.length} robot mapping(s):
+                              </p>
+                              <ul style="margin:0 0 8px 18px;color:#374151;">
+                                ${robotMappings.map(m => `<li>${escHtml(m)}</li>`).join('')}
+                              </ul>`;
+            }
+            if (robotError) {
+                usageHtml += `<p style="color:#9ca3af;font-size:12px;margin:4px 0;">
+                                (Robot: ${escHtml(robotError)})
+                              </p>`;
+            }
+            if (hostMappings.length > 0 || robotMappings.length > 0) {
+                usageHtml += `<p style="color:#6b7280;font-size:13px;margin-top:6px;">
+                                The button/joystick assignment for this action will be removed
+                                from those mappings. The mappings themselves will not be deleted.
+                              </p>`;
+            } else if (!robotError) {
+                usageHtml = `<p style="color:#6b7280;margin:8px 0;">
+                               This action is not used by any mapping.
+                             </p>`;
+            }
+
+            const confirmed = await showConfirmModal(
+                `Delete action "<strong>${escHtml(name)}</strong>" from <strong>${dest}</strong>?`,
+                usageHtml
+            );
+            if (!confirmed) return;
+
+            // ── 3. Perform the delete ─────────────────────────────────────
             try {
                 const resp = await fetch('/api/actions/delete', {
                     method: 'POST',
@@ -1249,6 +1307,44 @@
             } catch(e) {
                 showToast('Network error: ' + e.message, 'error');
             }
+        }
+
+        // ── Generic confirm modal ─────────────────────────────────────────────
+        function showConfirmModal(titleHtml, bodyHtml) {
+            return new Promise(resolve => {
+                // Remove any existing modal
+                document.getElementById('_confirm-modal')?.remove();
+
+                const overlay = document.createElement('div');
+                overlay.id = '_confirm-modal';
+                overlay.style.cssText = `
+                    position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
+                    display:flex;align-items:center;justify-content:center;`;
+                overlay.innerHTML = `
+                    <div style="background:#fff;border-radius:10px;padding:24px 28px;
+                                max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+                        <p style="font-size:15px;font-weight:600;margin:0 0 8px;">${titleHtml}</p>
+                        <div id="_confirm-body">${bodyHtml}</div>
+                        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                            <button id="_confirm-cancel"
+                                style="padding:7px 18px;border-radius:6px;border:1px solid #d1d5db;
+                                       background:#f9fafb;cursor:pointer;font-size:14px;">
+                                Cancel
+                            </button>
+                            <button id="_confirm-ok"
+                                style="padding:7px 18px;border-radius:6px;border:none;
+                                       background:#dc2626;color:#fff;cursor:pointer;font-size:14px;font-weight:600;">
+                                Delete
+                            </button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+
+                const cleanup = (result) => { overlay.remove(); resolve(result); };
+                document.getElementById('_confirm-ok').onclick     = () => cleanup(true);
+                document.getElementById('_confirm-cancel').onclick = () => cleanup(false);
+                overlay.addEventListener('click', e => { if (e.target === overlay) cleanup(false); });
+            });
         }
 
         // ── Pre-fill form for modify ──────────────────────────────────────────

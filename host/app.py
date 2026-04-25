@@ -299,6 +299,38 @@ class FlaskApp:
                 "robot_msg":   robot_msg,
             })
 
+        @app.get('/api/actions/usages')
+        def api_action_usages():
+            """Return which mappings reference the given action name (host and/or robot)."""
+            uid = self._uid()
+            if uid is None:
+                return jsonify({"success": False, "error": "Not logged in"}), 401
+            name = (request.args.get('name') or '').strip()
+            if not name:
+                return jsonify({"success": False, "error": "Name required"}), 400
+            destination = (request.args.get('destination') or 'host').strip()
+
+            host_mappings  = []
+            robot_mappings = []
+            robot_error    = ''
+
+            if destination in ('host', 'both'):
+                host_mappings = self._db.get_mappings_using_action(uid, name)
+
+            if destination in ('robot', 'both'):
+                node = self._node()
+                if node is None:
+                    robot_error = 'ROS2 node not running'
+                else:
+                    robot_mappings, robot_error = node.get_robot_action_usages(name)
+
+            return jsonify({
+                "success":       True,
+                "host_mappings":  host_mappings,
+                "robot_mappings": robot_mappings,
+                "robot_error":    robot_error,
+            })
+
         @app.post('/api/actions/delete')
         def api_delete_action():
             uid  = self._uid()
