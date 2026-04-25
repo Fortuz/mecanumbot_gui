@@ -1435,6 +1435,7 @@
             _editingActionName = name;  // Track that we're editing this action
             document.getElementById('submit-action-btn').textContent = 'Update Action';
             document.getElementById('cancel-modify-btn').style.display = '';
+            setSaveDest(_actionSource);  // Pre-select "Save to" based on where the action comes from
             const titleEl = document.getElementById('form-card-title');
             updateSaveTargetBadge();
             titleEl.innerHTML = `Modify: ${escHtml(name)} <span id="save-target-badge"></span>`;
