@@ -674,11 +674,11 @@
                             </div>
                             <div class="scheme-item-actions" onclick="event.stopPropagation()">
                                 <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;"
-                                        onclick='modifyScheme({{ sname | tojson }}, {{ topics | tojson }}, "host")'>
+                                        onclick='modifyScheme({{ sname | tojson | replace("'", "&#39;") }}, {{ topics | tojson | replace("'", "&#39;") }}, "host")'>
                                     Modify
                                 </button>
                                 <button class="btn btn-danger" style="font-size:11px;padding:3px 9px;"
-                                        onclick='deleteScheme({{ sname | tojson }}, "host")'>
+                                        onclick='deleteScheme({{ sname | tojson | replace("'", "&#39;") }}, "host")'>
                                     Delete
                                 </button>
                             </div>
@@ -1004,11 +1004,11 @@
                         </div>
                         <div class="scheme-item-actions" onclick="event.stopPropagation()">
                             <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;"
-                                    onclick='modifyScheme(${JSON.stringify(sname)}, ${JSON.stringify(topics)}, "robot")'>
+                                    onclick='modifyScheme(${JSON.stringify(sname).replace(/'/g,"&#39;")}, ${JSON.stringify(topics).replace(/'/g,"&#39;")}, "robot")'>
                                 Modify
                             </button>
                             <button class="btn btn-danger" style="font-size:11px;padding:3px 9px;"
-                                    onclick='deleteScheme(${JSON.stringify(sname)}, "robot")'>
+                                    onclick='deleteScheme(${JSON.stringify(sname).replace(/'/g,"&#39;")}, "robot")'>
                                 Delete
                             </button>
                         </div>`;
@@ -1322,7 +1322,7 @@
                 if (resp.status === 409) {
                     btn.disabled = false;
                     if (confirm(`Recording scheme "${name}" already exists. Overwrite?`)) {
-                        saveScheme(true);
+                        await saveScheme(true);
                     }
                     return;
                 }
