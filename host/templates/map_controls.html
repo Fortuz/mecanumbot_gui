@@ -250,11 +250,11 @@
                         <span class="mapping-name">${escHtml(name)}</span>
                         <div class="mapping-item-actions">
                             <button class="btn btn-success btn-sm" style="padding:4px 10px;font-size:12px;"
-                                    onclick='applyMapping(${JSON.stringify(name)},${JSON.stringify(side)})'>Apply</button>
+                                    onclick='applyMapping(${escHtml(JSON.stringify(name))},${JSON.stringify(side)})'>Apply</button>
                             <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;"
-                                    onclick='modifyMapping(${JSON.stringify(name)},${JSON.stringify(side)})'>Modify</button>
+                                    onclick='modifyMapping(${escHtml(JSON.stringify(name))},${JSON.stringify(side)})'>Modify</button>
                             <button class="btn btn-danger" style="padding:4px 10px;font-size:12px;"
-                                    onclick='deleteMapping(${JSON.stringify(name)},${JSON.stringify(side)})'>Delete</button>
+                                    onclick='deleteMapping(${escHtml(JSON.stringify(name))},${JSON.stringify(side)})'>Delete</button>
                         </div>
                     </div>
                     ${details ? `<div class="mapping-details">${details}</div>` : ''}
@@ -274,7 +274,7 @@
         }
 
         function escHtml(s) {
-            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         }
 
         // ── Load actions from host + robot (stored separately) ────────────────
