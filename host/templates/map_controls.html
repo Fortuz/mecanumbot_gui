@@ -596,7 +596,11 @@
                         showToast('Could not load mapping: ' + (result.error || 'unknown error'), 'error');
                         return;
                     }
-                    data = result.mapping;
+                    // Use {} as a truthy sentinel when the API omits the mapping
+                    // object (e.g. {success:true, mapping:null}).  Storing a falsy
+                    // value here would cause the !data guard above to re-trigger a
+                    // fetch on every subsequent Modify click for the same name.
+                    data = result.mapping || {};
                     _robotMappings[name] = data;   // cache
                     renderRobotMappings();
                 } catch(e) {
