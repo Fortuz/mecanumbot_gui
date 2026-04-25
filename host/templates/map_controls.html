@@ -262,6 +262,8 @@
         }
 
         // ── Load actions from host + robot (stored separately) ────────────────
+        let _robotActionsError = '';   // non-empty when robot action fetch failed
+
         async function loadActionsForMapping() {
             _hostBtnActions = Object.entries(BTN_ACTIONS).map(([name, d]) => ({
                 name, type: d.type || 'button'
@@ -270,17 +272,22 @@
                 name, type: 'joystick'
             }));
 
-            // Fetch robot actions (best-effort — silently skipped if offline)
+            // Fetch robot actions (best-effort — store error string if offline)
             try {
                 const resp = await fetch('/api/actions?source=robot');
-                if (resp.ok) {
-                    const actions = await resp.json();
-                    for (const a of (Array.isArray(actions) ? actions : [])) {
+                const data = await resp.json();
+                if (data.error) {
+                    _robotActionsError = data.error;
+                } else if (Array.isArray(data)) {
+                    _robotActionsError = '';
+                    for (const a of data) {
                         if (a.type === 'joystick') _robotJoyActions.push({ name: a.name, type: a.type });
                         else                        _robotBtnActions.push({ name: a.name, type: a.type });
                     }
                 }
-            } catch (_) { /* robot offline — skip */ }
+            } catch (e) {
+                _robotActionsError = e.message || 'Network error';
+            }
 
             _updateAllActionDropdowns();
         }
@@ -301,7 +308,10 @@
             document.getElementById('btn-rows').innerHTML = '';
             document.getElementById('joy-rows').innerHTML = '';
             rowSeq = 0;
-            // (No need to call _updateAllActionDropdowns — rows are gone)
+            // Show robot error in dropdowns immediately if robot is unreachable
+            if (document.getElementById('mapping-destination').value === 'robot' && _robotActionsError) {
+                showToast(`⚠ Could not reach robot: ${_robotActionsError}`, 'error');
+            }
         }
 
         function _updateAllActionDropdowns() {
@@ -316,7 +326,13 @@
         }
 
         function _buildActionOptions(actionList, selected) {
-            if (!actionList.length) return '<option value="">-- no actions available --</option>';
+            if (!actionList.length) {
+                const isRobot = document.getElementById('mapping-destination').value === 'robot';
+                if (isRobot && _robotActionsError) {
+                    return `<option value="">⚠ Could not reach robot: ${escHtml(_robotActionsError)}</option>`;
+                }
+                return '<option value="">-- no actions available --</option>';
+            }
             let html = '<option value="">-- Action --</option>';
             for (const a of actionList) {
                 const lbl = a.type === 'button_hold' ? ' (Hold)' : '';
