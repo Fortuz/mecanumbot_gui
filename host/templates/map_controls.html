@@ -447,9 +447,6 @@
                 showToast('Add at least one button or joystick assignment', 'error'); return;
             }
 
-            // Capture before anything can mutate the editing state (e.g. cancelEdit)
-            const wasEditing = !!_editingMappingName;
-
             // If editing the same mapping name on the same side, force overwrite
             if (_editingMappingName === name && _editingMappingSide === dest) {
                 overwrite = true;
@@ -471,7 +468,7 @@
                 // Handle conflict (409)
                 if (resp.status === 409 && data.error && data.error.includes('already exists') && !overwrite) {
                     btn.disabled = false;
-                    btn.textContent = wasEditing ? 'Update Mapping' : 'Save Mapping';
+                    btn.textContent = !!_editingMappingName ? 'Update Mapping' : 'Save Mapping';
                     if (confirm(data.error + '\n\nOverwrite the existing mapping?')) {
                         await saveMapping(true);
                     }
@@ -493,7 +490,10 @@
                 showToast('Network error: ' + e.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = wasEditing ? 'Update Mapping' : 'Save Mapping';
+                // Use live _editingMappingName: on success cancelEdit() already nulled it,
+                // so we correctly get 'Save Mapping'. On error/catch it's still set,
+                // so we correctly restore 'Update Mapping'.
+                btn.textContent = !!_editingMappingName ? 'Update Mapping' : 'Save Mapping';
             }
         }
 
