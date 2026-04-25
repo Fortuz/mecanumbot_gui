@@ -179,11 +179,18 @@
                 ]);
 
                 // ── Host mappings ─────────────────────────────────────────────
+                let _hostFetchOk = false;
                 if (hostResult.status === 'fulfilled') {
                     const hostData = await hostResult.value.json();
-                    _hostMappings = {};
-                    for (const m of (Array.isArray(hostData) ? hostData : [])) {
-                        _hostMappings[m.name] = m;
+                    if (hostData.error) {
+                        document.getElementById('host-mapping-list').innerHTML =
+                            `<div class="empty-state"><p style="color:#b91c1c;">⚠ Could not load host mappings: ${escHtml(hostData.error)}</p></div>`;
+                    } else {
+                        _hostMappings = {};
+                        for (const m of (Array.isArray(hostData) ? hostData : [])) {
+                            _hostMappings[m.name] = m;
+                        }
+                        _hostFetchOk = true;
                     }
                 } else {
                     document.getElementById('host-mapping-list').innerHTML =
@@ -214,7 +221,7 @@
 
                 // Only re-render each side if it was successfully fetched;
                 // the error branch already set the innerHTML above.
-                if (hostResult.status === 'fulfilled') renderHostMappings();
+                if (_hostFetchOk)  renderHostMappings();
                 if (_robotFetchOk) renderRobotMappings();
             } catch(e) {
                 const msg = `<div class="empty-state"><p style="color:#dc2626;">Failed to load: ${escHtml(e.message)}</p></div>`;
@@ -278,6 +285,10 @@
             _hostJoyActions = Object.entries(JOY_ACTIONS).map(([name]) => ({
                 name, type: 'joystick'
             }));
+
+            // Reset robot action lists before re-fetching to avoid duplicates
+            _robotBtnActions = [];
+            _robotJoyActions = [];
 
             // Fetch robot actions (best-effort — store error string if offline)
             try {
@@ -552,7 +563,11 @@
             // Guard: if the robot action list hasn't loaded yet, the action dropdowns
             // will be empty and every button assignment will be silently dropped on save.
             if (side === 'robot' && _robotBtnActions.length === 0 && _robotJoyActions.length === 0) {
-                showToast('⚠ Robot actions not yet loaded — please wait a moment and try again.', 'warning');
+                if (_robotActionsError) {
+                    showToast(`⚠ Could not reach robot: ${_robotActionsError}`, 'error');
+                } else {
+                    showToast('⚠ Robot actions not yet loaded — please wait a moment and try again.', 'warning');
+                }
                 return;
             }
 
