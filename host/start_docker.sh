@@ -16,9 +16,9 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-# Set ROS Domain ID
+# Set ROS Domain ID (passed to the container via -e ROS_DOMAIN_ID=19 below)
 #export ROS_DOMAIN_ID=19
-echo $ROS_DOMAIN_ID
+echo "ROS_DOMAIN_ID (container): 19"
 # Stop and remove existing container if running
 echo "Stopping existing container (if any)..."
 sudo docker stop mecanumbot-gui 2>/dev/null
@@ -39,13 +39,6 @@ fi
 echo "✓ Image built successfully."
 echo ""
 
-# Ensure the host workspace directory exists and is owned by the current user
-# BEFORE running docker — if Docker creates a missing bind-mount target it
-# creates it as root, which breaks colcon (Permission denied writing log/).
-mkdir -p ~/Documents/mecanumbot_ws
-sudo chown -R "$(id -u):$(id -g)" ~/Documents/mecanumbot_ws
-
-
 # Start Docker container (foreground-attached via logs, not -d)
 echo "Starting mecanumbot-gui container..."
 sudo docker run -d \
@@ -57,8 +50,7 @@ sudo docker run -d \
     --user "$(id -u):$(id -g)" \
     -e ROS_DOMAIN_ID=19 \
     -e ROS_LOCALHOST_ONLY=0 \
-    -v ~/Documents:/host_docs \
-    -v $ROS_WS_DIR:/ws\
+    -v "$HOME/Documents":/host_docs \
     mecanumbot-gui
 
 if [ $? -ne 0 ]; then

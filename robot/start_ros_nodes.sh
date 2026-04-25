@@ -55,8 +55,7 @@ if [ ! -f "$PROJECT_ROOT/install/setup.bash" ]; then
     (cd "$PROJECT_ROOT" && colcon build --symlink-install \
         --paths \
             "$PROJECT_ROOT/robot/xbox_controller_pkg" \
-            "$PROJECT_ROOT/robot/button_mapping_ros" \
-            "$PROJECT_ROOT/shared/mecanumbot_msgs")
+            "$PROJECT_ROOT/robot/button_mapping_ros")
     if [ $? -ne 0 ]; then
         echo "✗ colcon build failed!"
         exit 1
