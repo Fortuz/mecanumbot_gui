@@ -6,11 +6,22 @@ ENV ROS_SUPER_CLIENT=true
 
 RUN apt-get update && apt-get install -y \
     python3-pip \
+    git \
     ros-humble-ament-cmake \
     ros-humble-rosidl-default-generators \
     ros-humble-rosidl-default-runtime \
     ros-humble-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
+
+# Clone and build mecanumbot_msgs into the image at build time.
+# This means no /ws bind-mount is needed at runtime — messages are baked in.
+RUN mkdir -p /app && bash -c "\
+    source /opt/ros/humble/setup.bash && \
+    mkdir -p /ws/src && \
+    git clone https://github.com/Fortuz/mecanumbot_msgs.git /ws/src/mecanumbot_msgs && \
+    cd /ws && \
+    colcon --log-base /tmp/colcon_log build && \
+    echo 'source /ws/install/setup.bash' >> /app/ros_setup.bash"
 
 WORKDIR /app
 
@@ -37,18 +48,10 @@ EXPOSE 8080
 # add cycloneDDS
 ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
+# start.sh: source ROS + baked-in messages, then run Flask
 RUN printf '#!/bin/bash\n\
 export ROS_SUPER_CLIENT=true\n\
 source /opt/ros/humble/setup.bash\n\
-if [ ! -f /ws/install/setup.bash ]; then\n\
-    echo "[start.sh] Building /ws with colcon..."\n\
-    cd /ws\n\
-    colcon --log-base /tmp/colcon_log build\n\
-    if [ $? -ne 0 ]; then\n\
-        echo "[start.sh] ERROR: colcon build failed -- mecanumbot_msgs unavailable"\n\
-        exit 1\n\
-    fi\n\
-fi\n\
 source /ws/install/setup.bash\n\
 cd /app\n\
 exec python3 app.py\n\
