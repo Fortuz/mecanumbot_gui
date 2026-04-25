@@ -566,6 +566,12 @@
                 return;
             }
 
+            // Guard: host mapping data must be available (may be missing during a reload)
+            if (side === 'host' && !data) {
+                showToast('⚠ Host mapping data not yet loaded — please wait and try again.', 'warning');
+                return;
+            }
+
             // Robot mapping with no cached detail yet — fetch now
             if (side === 'robot' && !data) {
                 showToast('Fetching mapping details from robot…', 'warning');
