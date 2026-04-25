@@ -210,7 +210,9 @@
                             if (!newRobotNames.has(name)) delete _robotMappings[name];
                         }
                         for (const name of newRobotNames) {
-                            if (!_robotMappings[name]) _robotMappings[name] = null;
+                            // Always reset to null so stale cached details are cleared;
+                            // detail will be re-fetched from robot on next Modify click.
+                            _robotMappings[name] = null;
                         }
                         _robotFetchOk = true;
                     }
