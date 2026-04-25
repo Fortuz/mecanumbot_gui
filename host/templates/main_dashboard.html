@@ -986,8 +986,6 @@
                 let idx = 0;
                 for (const [sname, topics] of Object.entries(data.schemes)) {
                     idx++;
-                    // Skip if a host card with the same name already exists
-                    if (list.querySelector(`.scheme-item[data-name="${CSS.escape(sname)}"][data-source="host"]`)) continue;
                     const topicsStr = topics.join(', ');
                     const card = document.createElement('div');
                     card.className        = 'scheme-item';
