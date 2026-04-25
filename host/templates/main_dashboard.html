@@ -1065,6 +1065,7 @@
         function showBatteryAlert(v) {
             const isCrit = v < BAT_CRIT;
             const pct    = Math.max(0, Math.min(100, Math.round((v - BAT_MIN) / (BAT_MAX - BAT_MIN) * 100)));
+            const vStr   = Number(v).toFixed(2);
             const overlay = document.createElement('div');
             overlay.id = '_bat-alert';
             overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;
@@ -1077,7 +1078,7 @@
                         ${isCrit ? 'Critical Battery!' : 'Low Battery Warning'}
                     </p>
                     <p style="color:#374151;font-size:14px;margin:0 0 16px;">
-                        Battery is at <strong>${Number(v).toFixed(2)} V</strong> (${pct}%).
+                        Battery is at <strong>${vStr} V</strong> (${pct}%).
                         ${isCrit ? 'Please charge immediately.' : 'Consider charging soon.'}
                     </p>
                     <button onclick="document.getElementById('_bat-alert').remove()"
