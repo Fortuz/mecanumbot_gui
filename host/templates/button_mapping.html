@@ -1204,7 +1204,7 @@
                     btn.disabled = false;
                     btn.textContent = 'Save Action';
                     if (confirm(data.error + '\n\nOverwrite the existing action?')) {
-                        submitAction(true);
+                        await submitAction(true);
                     }
                     return;
                 }
