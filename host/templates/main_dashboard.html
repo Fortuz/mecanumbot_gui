@@ -1029,9 +1029,64 @@
             return `<span class="rs-value">${n}${unit}</span>`;
         }
 
+        // 3S LiPo: ~12.6 V full, ~9.9 V empty
+        const BAT_MAX = 12.6, BAT_MIN = 9.9;
+        const BAT_WARN = 11.0, BAT_CRIT = 10.2;
+        let _batLowAlerted = false;   // fire popup at most once until recovered
+
         function rsBattery(v) {
-            const cls = v < 10.2 ? 'error' : v < 11.0 ? 'warn' : '';
-            return `<span class="rs-value ${cls}">${Number(v).toFixed(2)} V</span>`;
+            const pct    = Math.max(0, Math.min(100, Math.round((v - BAT_MIN) / (BAT_MAX - BAT_MIN) * 100)));
+            const isCrit = v < BAT_CRIT;
+            const isWarn = v < BAT_WARN;
+            const cls    = isCrit ? 'error' : isWarn ? 'warn' : '';
+            const barClr = isCrit ? '#ef4444' : isWarn ? '#f59e0b' : '#16a34a';
+            const barHTML = `<span style="display:inline-block;width:60px;height:10px;
+                              border-radius:4px;background:#e5e7eb;vertical-align:middle;
+                              margin-left:6px;overflow:hidden;">
+                               <span style="display:block;height:100%;width:${pct}%;
+                                 background:${barClr};border-radius:4px;transition:width .4s;"></span>
+                             </span>`;
+            return `<span class="rs-value ${cls}">${Number(v).toFixed(2)} V</span>
+                    <span class="rs-value ${cls}" style="margin-left:6px;">${pct}%</span>
+                    ${barHTML}`;
+        }
+
+        function checkBatteryAlert(v) {
+            if (v < BAT_WARN) {
+                if (!_batLowAlerted) {
+                    _batLowAlerted = true;
+                    showBatteryAlert(v);
+                }
+            } else {
+                _batLowAlerted = false;   // reset when voltage recovers
+            }
+        }
+
+        function showBatteryAlert(v) {
+            const isCrit = v < BAT_CRIT;
+            const pct    = Math.max(0, Math.min(100, Math.round((v - BAT_MIN) / (BAT_MAX - BAT_MIN) * 100)));
+            const overlay = document.createElement('div');
+            overlay.id = '_bat-alert';
+            overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;
+                display:flex;align-items:center;justify-content:center;`;
+            overlay.innerHTML = `
+                <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:380px;
+                             width:90%;box-shadow:0 8px 32px rgba(0,0,0,.25);text-align:center;">
+                    <div style="font-size:40px;margin-bottom:8px;">${isCrit ? '🪫' : '🔋'}</div>
+                    <p style="font-size:17px;font-weight:700;color:${isCrit?'#dc2626':'#d97706'};margin:0 0 6px;">
+                        ${isCrit ? 'Critical Battery!' : 'Low Battery Warning'}
+                    </p>
+                    <p style="color:#374151;font-size:14px;margin:0 0 16px;">
+                        Battery is at <strong>${Number(v).toFixed(2)} V</strong> (${pct}%).
+                        ${isCrit ? 'Please charge immediately.' : 'Consider charging soon.'}
+                    </p>
+                    <button onclick="document.getElementById('_bat-alert').remove()"
+                        style="padding:8px 24px;border-radius:7px;border:none;cursor:pointer;font-size:14px;
+                               font-weight:600;background:${isCrit?'#dc2626':'#f59e0b'};color:#fff;">
+                        Dismiss
+                    </button>
+                </div>`;
+            document.body.appendChild(overlay);
         }
 
         function buildRobotStateHTML(s) {
@@ -1125,6 +1180,7 @@
                     age.textContent = new Date().toLocaleTimeString();
                     body.className = 'robot-state-body';
                     body.innerHTML = buildRobotStateHTML(data);
+                    if (data.battery_voltage != null) checkBatteryAlert(data.battery_voltage);
                     _rsLastOk = true;
                 })
                 .catch(() => {
