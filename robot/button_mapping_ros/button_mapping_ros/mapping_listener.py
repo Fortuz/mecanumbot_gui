@@ -226,6 +226,7 @@ class MappingListener(Node):
             response.action_names = []
             response.action_types = []
             response.actions_json = []
+            response.message      = str(e)
             return response
 
         action_names = []
@@ -244,6 +245,7 @@ class MappingListener(Node):
         response.action_names = action_names
         response.action_types = action_types
         response.actions_json = actions_json
+        response.message      = ''
         self.get_logger().info(
             f'GetRobotActions: returning {len(action_names)} action(s) for "{request.user_name}"')
         return response

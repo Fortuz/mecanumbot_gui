@@ -576,7 +576,7 @@ class DockerNode(Node):
             return None, 'GetRobotActions service timed out'
 
         if not result.success:
-            return None, 'Robot returned failure for GetRobotActions'
+            return None, result.message or 'Robot returned failure for GetRobotActions'
 
         actions = {}
         for name, atype, aj in zip(result.action_names, result.action_types, result.actions_json):

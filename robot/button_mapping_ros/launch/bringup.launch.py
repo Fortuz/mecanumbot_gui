@@ -8,6 +8,9 @@ def generate_launch_description():
         # Must match ROS_DOMAIN_ID on the host side
         SetEnvironmentVariable('ROS_DOMAIN_ID',      '19'),
         SetEnvironmentVariable('ROS_LOCALHOST_ONLY', '0'),
+        # Use CycloneDDS to avoid FastRTPS CDR deserialization bugs with
+        # multiple concurrent service servers/clients on the same node.
+        SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'),
 
         # joy driver — reads /dev/input/js* and publishes sensor_msgs/msg/Joy
         Node(
