@@ -382,20 +382,56 @@
         // ── Button row helpers ────────────────────────────────────────────────
         let rowSeq = 0;
 
+        function usedButtons() {
+            const used = new Set();
+            document.querySelectorAll('#btn-rows select[id$="-btn"]').forEach(s => {
+                if (s.value) used.add(s.value);
+            });
+            return used;
+        }
+
+        function usedJoysticks() {
+            const used = new Set();
+            document.querySelectorAll('#joy-rows select[id$="-joy"]').forEach(s => {
+                if (s.value) used.add(s.value);
+            });
+            return used;
+        }
+
         function buttonOptions(selected) {
+            const used = usedButtons();
             let o = '<option value="">-- Button --</option>';
             for (const b of BUTTONS) {
+                if (b !== selected && used.has(b)) continue;
                 o += `<option value="${escHtml(b)}" ${b===selected?'selected':''}>${escHtml(b)}</option>`;
             }
             return o;
         }
 
         function joystickOptions(selected) {
+            const used = usedJoysticks();
             let o = '<option value="">-- Joystick --</option>';
             for (const j of JOYSTICKS) {
+                if (j !== selected && used.has(j)) continue;
                 o += `<option value="${escHtml(j)}" ${j===selected?'selected':''}>${escHtml(j)}</option>`;
             }
             return o;
+        }
+
+        function refreshButtonSelects() {
+            document.querySelectorAll('#btn-rows select[id$="-btn"]').forEach(sel => {
+                const current = sel.value;
+                sel.innerHTML = buttonOptions(current);
+                sel.value = current;
+            });
+        }
+
+        function refreshJoystickSelects() {
+            document.querySelectorAll('#joy-rows select[id$="-joy"]').forEach(sel => {
+                const current = sel.value;
+                sel.innerHTML = joystickOptions(current);
+                sel.value = current;
+            });
         }
 
         function addBtnRow(btn='', action='') {
@@ -403,10 +439,11 @@
             const tr = document.createElement('tr');
             tr.id = id;
             tr.innerHTML = `
-                <td><select id="${id}-btn">${buttonOptions(btn)}</select></td>
+                <td><select id="${id}-btn" onchange="refreshButtonSelects()">${buttonOptions(btn)}</select></td>
                 <td><select id="${id}-act" class="action-btn-select">${_buildActionOptions(_activeBtnActions(), action)}</select></td>
-                <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
+                <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove(); refreshButtonSelects()">✕</button></td>`;
             document.getElementById('btn-rows').appendChild(tr);
+            refreshButtonSelects();
         }
 
         function addJoyRow(joy='', action='') {
@@ -414,10 +451,11 @@
             const tr = document.createElement('tr');
             tr.id = id;
             tr.innerHTML = `
-                <td><select id="${id}-joy">${joystickOptions(joy)}</select></td>
+                <td><select id="${id}-joy" onchange="refreshJoystickSelects()">${joystickOptions(joy)}</select></td>
                 <td><select id="${id}-act" class="action-joy-select">${_buildActionOptions(_activeJoyActions(), action)}</select></td>
-                <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove()">✕</button></td>`;
+                <td><button type="button" class="btn btn-danger" style="padding:3px 8px;font-size:11px;" onclick="this.closest('tr').remove(); refreshJoystickSelects()">✕</button></td>`;
             document.getElementById('joy-rows').appendChild(tr);
+            refreshJoystickSelects();
         }
 
         // ── Collect form data ─────────────────────────────────────────────────
