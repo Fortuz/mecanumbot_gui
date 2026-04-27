@@ -25,12 +25,30 @@ XBOX360_BUTTONS = [
     "DPadUp", "DPadDown", "DPadLeft", "DPadRight"
 ]
 
+GENERIC_BUTTONS = [
+    "A", "B", "X", "Y",
+    "LB", "RB",
+    "BACK", "START", "HOME",
+    "LS", "RS",
+    "DPadUp", "DPadDown", "DPadLeft", "DPadRight"
+]
+
 CONTROLLER_JOYSTICKS = [
     "Left Stick",
     "Right Stick",
     "Left Trigger (LT)",
     "Right Trigger (RT)"
 ]
+
+def _get_controller_buttons():
+    """Return the correct button list based on the live controller type."""
+    ctype = docker_node.LATEST_CONTROLLER_STATUS.get("controller_type", "Unknown")
+    if ctype == "Xbox 360":
+        return XBOX360_BUTTONS
+    elif ctype == "Generic":
+        return GENERIC_BUTTONS
+    # Robot offline or unknown — fall back to Xbox 360 list as default
+    return XBOX360_BUTTONS
 
 # ──────────────────────────────────────────────────────────────
 # Topic schemas
@@ -140,10 +158,6 @@ class FlaskApp:
         self.ACTION_TYPE_BUTTON_ONCE = _db_constants.ACTION_BUTTON_ONCE
         self.ACTION_TYPE_BUTTON_HOLD = _db_constants.ACTION_BUTTON_HOLD
         self.ACTION_TYPE_JOYSTICK    = _db_constants.ACTION_JOYSTICK
-
-        self.CONTROLLER_TYPE    = "Xbox 360"
-        self.CONTROLLER_BUTTONS = XBOX360_BUTTONS.copy()
-        print(f"Using controller layout: {self.CONTROLLER_TYPE}")
 
         self.app = Flask(__name__)
         self.app.secret_key = os.environ.get('FLASK_SECRET', 'mecanumbot-secret-2025')
@@ -727,7 +741,7 @@ class FlaskApp:
             topics       = docker_node.RECORDABLE_TOPICS
             return render_template("main_dashboard.html",
                                    user_name=self._uname(),
-                                   controller_type=self.CONTROLLER_TYPE,
+                                   controller_type=docker_node.LATEST_CONTROLLER_STATUS.get("controller_type", "Unknown"),
                                    host_recording_schemes=host_schemes,
                                    recordable_topics=topics)
 
@@ -757,8 +771,8 @@ class FlaskApp:
             }
             return render_template(
                 "button_mapping.html",
-                buttons=self.CONTROLLER_BUTTONS,
-                controller_type=self.CONTROLLER_TYPE,
+                buttons=_get_controller_buttons(),
+                controller_type=docker_node.LATEST_CONTROLLER_STATUS.get("controller_type", "Unknown"),
                 actions=actions_view,
                 user_name=self._uname(),
                 topic_schemas=TOPIC_SCHEMAS,
@@ -776,9 +790,9 @@ class FlaskApp:
                         if d.get('type') == self.ACTION_TYPE_JOYSTICK}
             return render_template(
                 "map_controls.html",
-                buttons=self.CONTROLLER_BUTTONS,
+                buttons=_get_controller_buttons(),
                 joysticks=CONTROLLER_JOYSTICKS,
-                controller_type=self.CONTROLLER_TYPE,
+                controller_type=docker_node.LATEST_CONTROLLER_STATUS.get("controller_type", "Unknown"),
                 button_actions=btn_acts,
                 joystick_actions=joy_acts,
                 user_name=self._uname(),
