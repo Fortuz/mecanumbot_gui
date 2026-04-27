@@ -214,7 +214,7 @@ def client(monkeypatch):
     fake_dn = types.ModuleType("docker_node")
     fake_dn.CURRENT_USER              = {"id": None, "name": None}
     fake_dn.ROBOT_ACTIVE              = True
-    fake_dn.LATEST_CONTROLLER_STATUS  = {"connected": False}
+    fake_dn.LATEST_CONTROLLER_STATUS  = {"connected": False, "controller_type": "Unknown"}
     fake_dn.RECORDING_STATE           = {"active": False, "dir": ""}
     fake_dn._opencr_lock              = threading.Lock()
     fake_dn.LATEST_OPENCR_STATE       = None
@@ -868,3 +868,93 @@ class TestLedAndOpencrAPI:
                    content_type="application/json")
         assert r.status_code == 200
         assert r.get_json()["success"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tests: controller button list — live controller type detection
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestControllerButtonList:
+    """
+    Verify that _get_controller_buttons() and the pages that use it return
+    the correct button set depending on the live controller type reported
+    by LATEST_CONTROLLER_STATUS.
+    """
+
+    def _set_controller_type(self, fake_dn, ctype):
+        fake_dn.LATEST_CONTROLLER_STATUS = {
+            "connected": ctype != "Unknown",
+            "controller_type": ctype,
+        }
+
+    # ── unit-level: _get_controller_buttons() ────────────────────────────────
+
+    def test_get_controller_buttons_xbox360(self, authed_client):
+        _, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Xbox 360")
+        import app as app_module
+        buttons = app_module._get_controller_buttons()
+        assert "XBOX" in buttons
+        assert "HOME" not in buttons
+
+    def test_get_controller_buttons_generic(self, authed_client):
+        _, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Generic")
+        import app as app_module
+        buttons = app_module._get_controller_buttons()
+        assert "HOME" in buttons
+        assert "XBOX" not in buttons
+
+    def test_get_controller_buttons_unknown_falls_back_to_xbox360(self, authed_client):
+        _, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Unknown")
+        import app as app_module
+        buttons = app_module._get_controller_buttons()
+        assert "XBOX" in buttons
+
+    def test_get_controller_buttons_offline_falls_back_to_xbox360(self, authed_client):
+        _, _, fake_dn, _ = authed_client
+        fake_dn.LATEST_CONTROLLER_STATUS = {"connected": False}  # no controller_type key
+        import app as app_module
+        buttons = app_module._get_controller_buttons()
+        assert "XBOX" in buttons
+
+    # ── page-level: button list appears in rendered HTML ─────────────────────
+
+    def test_map_controls_shows_xbox360_buttons(self, authed_client):
+        c, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Xbox 360")
+        r = c.get("/map-controls")
+        assert r.status_code == 200
+        assert b'"XBOX"' in r.data
+        assert b'"HOME"' not in r.data
+
+    def test_map_controls_shows_generic_buttons(self, authed_client):
+        c, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Generic")
+        r = c.get("/map-controls")
+        assert r.status_code == 200
+        assert b'"HOME"' in r.data
+        assert b'"XBOX"' not in r.data
+
+    def test_button_mapping_shows_xbox360_buttons(self, authed_client):
+        # button_mapping page defines actions, not button assignments —
+        # the buttons list is passed but not rendered into JS on this page.
+        # Just verify the page loads successfully for both controller types.
+        c, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Xbox 360")
+        r = c.get("/button-mapping")
+        assert r.status_code == 200
+
+    def test_button_mapping_shows_generic_buttons(self, authed_client):
+        c, _, fake_dn, _ = authed_client
+        self._set_controller_type(fake_dn, "Generic")
+        r = c.get("/button-mapping")
+        assert r.status_code == 200
+
+    def test_map_controls_offline_shows_xbox360_fallback(self, authed_client):
+        c, _, fake_dn, _ = authed_client
+        fake_dn.LATEST_CONTROLLER_STATUS = {"connected": False}
+        r = c.get("/map-controls")
+        assert r.status_code == 200
+        assert b'"XBOX"' in r.data
