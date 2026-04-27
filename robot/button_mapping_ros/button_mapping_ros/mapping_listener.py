@@ -138,11 +138,11 @@ class MappingListener(Node):
         # ── Controller subscribers ────────────────────────────────────────────
         if MECANUMBOT_MSGS_AVAILABLE:
             self.create_subscription(
-                ButtonEvent, '/xbox_controller/button_events',
+                ButtonEvent, '/controller/button_events',
                 self.xbox_button_callback, 10,
                 callback_group=self._ctrl_cbg)
             self.create_subscription(
-                JoystickEvent, '/xbox_controller/joystick_events',
+                JoystickEvent, '/controller/joystick_events',
                 self.xbox_joystick_callback, 10,
                 callback_group=self._ctrl_cbg)
         else:

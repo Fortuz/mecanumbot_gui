@@ -21,7 +21,7 @@ setup(
     license='MIT',
     entry_points={
         'console_scripts': [
-            'xbox_controller_node = xbox_controller_pkg.xbox_controller_node:main',
+            'controller_node = xbox_controller_pkg.controller_node:main',
         ],
     },
 )

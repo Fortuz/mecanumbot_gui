@@ -25,7 +25,7 @@ echo ""
 
 echo "── Python tests (pytest) ───────────────────────────────────────"
 cd "${REPO_ROOT}"
-python -m pytest tests/test_database.py tests/test_app_api.py -v --tb=short
+python -m pytest tests/test_database.py tests/test_app_api.py tests/test_mapping_listener.py tests/test_controller_node.py -v --tb=short
 PYTHON_EXIT=$?
 
 echo ""

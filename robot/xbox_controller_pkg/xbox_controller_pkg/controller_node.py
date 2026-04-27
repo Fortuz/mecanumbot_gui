@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Xbox 360 / Generic Controller Button Publisher Node
+Controller Button Publisher Node
 
 This ROS 2 node listens to controller input via the joy package and
 publishes button press events to a custom topic.
@@ -51,7 +51,7 @@ GENERIC_DPAD_LEFT  = 13
 GENERIC_DPAD_RIGHT = 14
 
 
-class Xbox360ControllerNode(Node):
+class ControllerNode(Node):
     """
     ROS 2 Node that processes controller input and publishes button /
     joystick events.  Supports Xbox 360 wireless (xpad layout) and
@@ -78,7 +78,7 @@ class Xbox360ControllerNode(Node):
     }
 
     def __init__(self):
-        super().__init__('xbox360_controller_node')
+        super().__init__('controller_node')
 
         # Detected layout: None until first /joy message, then 'xbox360' or 'generic'
         self._layout      = None
@@ -103,21 +103,21 @@ class Xbox360ControllerNode(Node):
         # Create publisher for button events
         self.button_publisher = self.create_publisher(
             ButtonEvent,
-            '/xbox_controller/button_events',
+            '/controller/button_events',
             10
         )
         
         # Create publisher for joystick events
         self.joystick_publisher = self.create_publisher(
             JoystickEvent,
-            '/xbox_controller/joystick_events',
+            '/controller/joystick_events',
             10
         )
         
         # Create publisher for connection status
         self.connection_publisher = self.create_publisher(
             ControllerStatus,
-            '/xbox_controller/connection_status',
+            '/controller/connection_status',
             10
         )
         
@@ -359,18 +359,18 @@ class Xbox360ControllerNode(Node):
 
 def main(args=None):
     """
-    Main function to initialize and run the Xbox 360 controller node.
+    Main function to initialize and run the controller node.
     """
     rclpy.init(args=args)
 
     try:
-        xbox_controller_node = Xbox360ControllerNode()
-        rclpy.spin(xbox_controller_node)
+        controller_node = ControllerNode()
+        rclpy.spin(controller_node)
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     finally:
-        if 'xbox_controller_node' in locals():
-            xbox_controller_node.destroy_node()
+        if 'controller_node' in locals():
+            controller_node.destroy_node()
         try:
             rclpy.shutdown()
         except Exception:

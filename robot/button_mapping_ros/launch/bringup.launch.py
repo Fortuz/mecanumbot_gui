@@ -23,8 +23,8 @@ def generate_launch_description():
         # Translates raw Joy messages → controller-typed ROS2 topics
         Node(
             package='xbox_controller_pkg',
-            executable='xbox_controller_node',
-            name='xbox_controller_node',
+            executable='controller_node',
+            name='controller_node',
             output='screen',
         ),
 

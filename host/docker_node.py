@@ -89,9 +89,9 @@ _LED_COLOR_NAMES = {0:'BLACK', 1:'WHITE', 2:'GREEN', 3:'RED', 4:'BLUE', 5:'CYAN'
 _LED_MODE_NAMES  = {1:'WAVE_RIGHT', 2:'WAVE_LEFT', 3:'PULSE', 4:'SOLID'}
 
 RECORDABLE_TOPICS = [
-    {'topic': '/xbox_controller/button_events',    'msg_type': 'mecanumbot_msgs/msg/ButtonEvent',    'description': 'Button press/release events'},
-    {'topic': '/xbox_controller/joystick_events',  'msg_type': 'mecanumbot_msgs/msg/JoystickEvent',  'description': 'Joystick position events'},
-    {'topic': '/xbox_controller/connection_status','msg_type': 'mecanumbot_msgs/msg/ControllerStatus','description': 'Controller connection status'},
+    {'topic': '/controller/button_events',    'msg_type': 'mecanumbot_msgs/msg/ButtonEvent',    'description': 'Button press/release events'},
+    {'topic': '/controller/joystick_events',  'msg_type': 'mecanumbot_msgs/msg/JoystickEvent',  'description': 'Joystick position events'},
+    {'topic': '/controller/connection_status','msg_type': 'mecanumbot_msgs/msg/ControllerStatus','description': 'Controller connection status'},
     {'topic': '/cmd_vel',                          'msg_type': 'geometry_msgs/msg/Twist',          'description': 'Velocity commands sent to robot'},
     {'topic': '/joy',                              'msg_type': 'sensor_msgs/msg/Joy',              'description': 'Raw joystick input from joy_node'},
     {'topic': '/mecanumbot/opencr_state',          'msg_type': 'mecanumbot_msgs/msg/OpenCRState',  'description': 'Raw OpenCR state: wheel vel/pos/curr, servos, IMU, battery'},
@@ -133,7 +133,7 @@ class DockerNode(Node):
     ROS2 node running inside Docker / on the host machine.
 
     Two responsibilities:
-    1. Subscribe to /xbox_controller/connection_status and update
+    1. Subscribe to /controller/connection_status and update
        LATEST_CONTROLLER_STATUS in-process for the Flask UI to display.
     2. Provide service clients to interact with the robot (GetRobotActions,
        SaveRobotAction, ApplyMapping, etc.) for the Flask UI.
@@ -146,12 +146,12 @@ class DockerNode(Node):
 
         self.create_subscription(
             ControllerStatus,
-            '/xbox_controller/connection_status',
+            '/controller/connection_status',
             self._status_callback,
             10
         )
         self.get_logger().info(
-            'Docker Node started — subscribed to /xbox_controller/connection_status')
+            'Docker Node started — subscribed to /controller/connection_status')
         self._write_log("=== Docker Node Started ===")
         self._write_log(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 

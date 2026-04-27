@@ -1,1 +1,1 @@
-# xbox_controller_pkg package initialization
+# xbox_controller_pkg package — controller_node

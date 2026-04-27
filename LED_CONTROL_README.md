@@ -697,10 +697,10 @@ class MappingListener(Node):
        │ ROS2 Topic: /joy
        ▼
 ┌────────────────────────┐
-│  xbox_controller_node  │
+│    controller_node     │
 │  Translates to events  │
 └──────┬─────────────────┘
-       │ ROS2 Topic: /xbox_controller/button_events
+       │ ROS2 Topic: /controller/button_events
        │ Message: {"button": "A", "event": "PRESSED", ...}
        ▼
 ┌──────────────────────────────────┐

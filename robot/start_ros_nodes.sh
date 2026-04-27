@@ -34,7 +34,7 @@ echo "✓ Workspace sourced"
 echo ""
 
 # ── 3. Launch all nodes via the ROS2 launch file ──────────────────────────────
-# bringup.launch.py starts joy_node, xbox_controller_node, and mapping_listener.
+# bringup.launch.py starts joy_node, controller_node, and mapping_listener.
 # Ctrl+C here cleanly stops all of them — no manual PID management needed.
 echo "Launching nodes (Ctrl+C to stop all)..."
 ros2 launch button_mapping_ros bringup.launch.py
