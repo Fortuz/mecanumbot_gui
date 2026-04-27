@@ -48,7 +48,7 @@ def _get_controller_buttons():
     elif ctype == "Generic":
         return GENERIC_BUTTONS
     # Robot offline or unknown — fall back to Xbox 360 list as default
-    return XBOX360_BUTTONS
+    return GENERIC_BUTTONS
 
 # ──────────────────────────────────────────────────────────────
 # Topic schemas

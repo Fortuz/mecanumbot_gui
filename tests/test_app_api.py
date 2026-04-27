@@ -905,19 +905,19 @@ class TestControllerButtonList:
         assert "HOME" in buttons
         assert "XBOX" not in buttons
 
-    def test_get_controller_buttons_unknown_falls_back_to_xbox360(self, authed_client):
+    def test_get_controller_buttons_unknown_falls_back_to_generic(self, authed_client):
         _, _, fake_dn, _ = authed_client
         self._set_controller_type(fake_dn, "Unknown")
         import app as app_module
         buttons = app_module._get_controller_buttons()
-        assert "XBOX" in buttons
+        assert "HOME" in buttons
 
-    def test_get_controller_buttons_offline_falls_back_to_xbox360(self, authed_client):
+    def test_get_controller_buttons_offline_falls_back_to_generic(self, authed_client):
         _, _, fake_dn, _ = authed_client
         fake_dn.LATEST_CONTROLLER_STATUS = {"connected": False}  # no controller_type key
         import app as app_module
         buttons = app_module._get_controller_buttons()
-        assert "XBOX" in buttons
+        assert "HOME" in buttons
 
     # ── page-level: button list appears in rendered HTML ─────────────────────
 
@@ -952,9 +952,9 @@ class TestControllerButtonList:
         r = c.get("/button-mapping")
         assert r.status_code == 200
 
-    def test_map_controls_offline_shows_xbox360_fallback(self, authed_client):
+    def test_map_controls_offline_shows_generic_fallback(self, authed_client):
         c, _, fake_dn, _ = authed_client
         fake_dn.LATEST_CONTROLLER_STATUS = {"connected": False}
         r = c.get("/map-controls")
         assert r.status_code == 200
-        assert b'"XBOX"' in r.data
+        assert b'"HOME"' in r.data
