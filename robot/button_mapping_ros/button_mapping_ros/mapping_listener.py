@@ -188,8 +188,8 @@ class MappingListener(Node):
 
             # ── LED set service client ─────────────────────────────────────────
             self._led_set_client = self.create_client(
-                SetLedStatus, 'set_led_status')
-            self.get_logger().info('LED service client created: set_led_status')
+                SetLedStatus, '/mecanumbot/set_led_status')
+            self.get_logger().info('LED service client created: /mecanumbot/set_led_status')
         else:
             self._led_set_client = None
             self.get_logger().warn(
@@ -749,7 +749,7 @@ class MappingListener(Node):
 
     def _execute_service_action(self, service_name: str, cfg_json: str, action_name: str):
         """Dispatch a service call based on service_name."""
-        if service_name == 'set_led_status':
+        if service_name in ('set_led_status', '/mecanumbot/set_led_status', 'mecanumbot/set_led_status'):
             self._execute_led_service(cfg_json, action_name)
         else:
             self.get_logger().warn(
@@ -764,7 +764,7 @@ class MappingListener(Node):
         if not self._led_set_client.service_is_ready():
             self.get_logger().warn(
                 f'[LED] Cannot execute "{action_name}" — '
-                'set_led_status service not ready')
+                '/mecanumbot/set_led_status service not ready')
             return
         try:
             cfg = json.loads(cfg_json)
@@ -787,7 +787,7 @@ class MappingListener(Node):
         future = self._led_set_client.call_async(req)
         future.add_done_callback(
             lambda f: self._on_led_response(f, action_name))
-        self.get_logger().info(f'  -> LED action "{action_name}" sent to set_led_status')
+        self.get_logger().info(f'  -> LED action "{action_name}" sent to /mecanumbot/set_led_status')
 
     def _on_led_response(self, future, action_name: str):
         try:

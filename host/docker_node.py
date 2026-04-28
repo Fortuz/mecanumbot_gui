@@ -69,7 +69,8 @@ LATEST_OPENCR_STATE = None
 _led_lock        = threading.Lock()
 LATEST_LED_STATE = None
 
-ROBOT_ACTIVE = False
+ROBOT_ACTIVE      = False
+CONTROLLER_ACTIVE = False
 
 RECORDING_STATE = {
     "active":     False,
@@ -155,9 +156,13 @@ class DockerNode(Node):
         self._write_log("=== Docker Node Started ===")
         self._write_log(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-        self._last_opencr_time   = None
-        self._robot_gone_timeout = 8.0
+        self._last_opencr_time       = None
+        self._robot_gone_timeout     = 8.0
         self.create_timer(5.0, self._robot_watchdog)
+
+        self._last_controller_time   = None
+        self._controller_gone_timeout = 8.0
+        self.create_timer(5.0, self._controller_watchdog)
 
         self._get_robot_actions_client = self.create_client(GetRobotActions, '/mecanumbot/get_robot_actions')
 
@@ -175,8 +180,8 @@ class DockerNode(Node):
         self._del_scheme_client  = self.create_client(DeleteRecordingScheme, '/mecanumbot/delete_recording_scheme')
         self._get_action_usages_client = self.create_client(GetActionUsages, '/mecanumbot/get_action_usages')
 
-        self._led_set_client = self.create_client(SetLedStatus, '/set_led_status')
-        self._led_get_client = self.create_client(GetLedStatus, '/get_led_status')
+        self._led_set_client = self.create_client(SetLedStatus, '/mecanumbot/set_led_status')
+        self._led_get_client = self.create_client(GetLedStatus, '/mecanumbot/get_led_status')
         self._rec_subs     = {}
         self._rec_files    = {}
         self._rec_file     = None
@@ -225,8 +230,13 @@ class DockerNode(Node):
 
     def _status_callback(self, msg):
         """Callback for typed ControllerStatus messages."""
-        global LATEST_CONTROLLER_STATUS
+        global LATEST_CONTROLLER_STATUS, CONTROLLER_ACTIVE
         try:
+            self._last_controller_time = time.monotonic()
+            if not CONTROLLER_ACTIVE:
+                CONTROLLER_ACTIVE = True
+                self.get_logger().info(
+                    'Controller came online (/controller/connection_status received).')
             LATEST_CONTROLLER_STATUS = {
                 "connected":             msg.connected,
                 "controller_type":       msg.controller_type,
@@ -557,6 +567,26 @@ class DockerNode(Node):
             # Mark the controller as disconnected too — the robot is the
             # only source of controller status, so if the robot is gone the
             # controller status is stale and meaningless.
+            LATEST_CONTROLLER_STATUS = {
+                **LATEST_CONTROLLER_STATUS,
+                "connected":             False,
+                "time_since_last_input": elapsed,
+                "last_updated":          datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            }
+
+    # ── Controller watchdog ───────────────────────────────────────────────────
+
+    def _controller_watchdog(self):
+        global CONTROLLER_ACTIVE, LATEST_CONTROLLER_STATUS
+        if self._last_controller_time is None:
+            return
+        elapsed = time.monotonic() - self._last_controller_time
+        if elapsed > self._controller_gone_timeout and CONTROLLER_ACTIVE:
+            CONTROLLER_ACTIVE = False
+            self.get_logger().warn(
+                f'Controller node went offline '
+                f'(no /controller/connection_status for {elapsed:.1f} s). '
+                'Will re-sync when it comes back.')
             LATEST_CONTROLLER_STATUS = {
                 **LATEST_CONTROLLER_STATUS,
                 "connected":             False,
