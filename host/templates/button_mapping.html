@@ -776,17 +776,29 @@
             }
             html += '</div>';
 
-            // Offset inputs for joystick only
+            // Scale + Offset inputs for joystick only
             if (isJoy) {
                 html += `
-                    <div class="scale-row">
+                    <div class="scale-row" style="flex-wrap:wrap;gap:6px 16px;">
+                        <label>Scale X:</label>
+                        <input type="number" id="${id}-sx" value="1.0" step="0.1" min="-100" max="100"
+                               style="width:70px;" oninput="updatePreview('${id}')"
+                               title="Multiply the joystick X axis before publishing (e.g. 0.5 = half speed, -1 = invert)">
+                        <label style="margin-left:4px;">Scale Y:</label>
+                        <input type="number" id="${id}-sy" value="1.0" step="0.1" min="-100" max="100"
+                               style="width:70px;" oninput="updatePreview('${id}')"
+                               title="Multiply the joystick Y axis before publishing">
+                        <span style="font-size:11px;color:#9ca3af;margin-left:4px;">axis × scale</span>
+                        <div style="width:100%;margin:0;"></div>
                         <label>Offset X:</label>
                         <input type="number" id="${id}-ox" value="0.0" step="0.1" min="-100" max="100"
-                               style="width:70px;" oninput="updatePreview('${id}')">
-                        <label style="margin-left:8px;">Offset Y:</label>
+                               style="width:70px;" oninput="updatePreview('${id}')"
+                               title="Added after scaling: final = axis × scale + offset">
+                        <label style="margin-left:4px;">Offset Y:</label>
                         <input type="number" id="${id}-oy" value="0.0" step="0.1" min="-100" max="100"
-                               style="width:70px;" oninput="updatePreview('${id}')">
-                        <span style="font-size:11px;color:#9ca3af;margin-left:8px;">added to ±1.0 axis value</span>
+                               style="width:70px;" oninput="updatePreview('${id}')"
+                               title="Added after scaling: final = axis × scale + offset">
+                        <span style="font-size:11px;color:#9ca3af;margin-left:4px;">+ offset  →  final = axis × scale + offset</span>
                     </div>`;
             }
 
@@ -1027,8 +1039,12 @@
 
                 const oxEl = document.getElementById(rowId + '-ox');
                 const oyEl = document.getElementById(rowId + '-oy');
+                const sxEl = document.getElementById(rowId + '-sx');
+                const syEl = document.getElementById(rowId + '-sy');
                 injectHidden('offset_x_' + rowIdx, oxEl ? oxEl.value : '0.0');
                 injectHidden('offset_y_' + rowIdx, oyEl ? oyEl.value : '0.0');
+                injectHidden('scale_x_'  + rowIdx, sxEl ? sxEl.value : '1.0');
+                injectHidden('scale_y_'  + rowIdx, syEl ? syEl.value : '1.0');
 
                 lines.push(`${topic}\t${msgJson}\t${msgType}\ttopic\t`);
                 rowIdx++;
@@ -1181,9 +1197,13 @@
 
                 const oxEl = document.getElementById(rowId + '-ox');
                 const oyEl = document.getElementById(rowId + '-oy');
+                const sxEl = document.getElementById(rowId + '-sx');
+                const syEl = document.getElementById(rowId + '-sy');
                 const ox = oxEl ? parseFloat(oxEl.value)||0.0 : 0.0;
                 const oy = oyEl ? parseFloat(oyEl.value)||0.0 : 0.0;
-                tuples.push([topic, msgJson, msgType, 1.0, 1.0, ox, oy, 'topic', '']);
+                const sx = sxEl ? (parseFloat(sxEl.value) ?? 1.0) : 1.0;
+                const sy = syEl ? (parseFloat(syEl.value) ?? 1.0) : 1.0;
+                tuples.push([topic, msgJson, msgType, sx, sy, ox, oy, 'topic', '']);
             }
 
             if (tuples.length === 0) { showToast('Add at least one topic or service row.', 'error'); return; }
@@ -1427,6 +1447,11 @@
                             } catch(e) { console.warn('Failed to parse message JSON:', e); }
                         }
 
+                        // Set scale values
+                        const sxEl = document.getElementById(rowId + '-sx');
+                        const syEl = document.getElementById(rowId + '-sy');
+                        if (sxEl) sxEl.value = (t[3] !== undefined) ? t[3] : 1.0;
+                        if (syEl) syEl.value = (t[4] !== undefined) ? t[4] : 1.0;
                         // Set offset values
                         const oxEl = document.getElementById(rowId + '-ox');
                         const oyEl = document.getElementById(rowId + '-oy');
