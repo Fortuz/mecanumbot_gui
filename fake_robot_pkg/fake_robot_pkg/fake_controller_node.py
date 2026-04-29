@@ -10,6 +10,11 @@ Published topics
   /controller/joystick_events     mecanumbot_msgs/msg/JoystickEvent       on demand
   /opencr_state                   mecanumbot_msgs/msg/OpenCRState         10 Hz
 
+Subscribed topics  (motor / accessory simulation)
+--------------------------------------------------
+  /cmd_vel               geometry_msgs/msg/Twist          → updates wheel velocities in OpenCR state
+  /cmd_accessory_pos     mecanumbot_msgs/msg/AccessMotorCmd → updates servo positions in OpenCR state
+
 Service servers
 ---------------
   /get_led_status   mecanumbot_msgs/srv/GetLedStatus
@@ -54,8 +59,9 @@ import textwrap
 import rclpy
 from rclpy.node import Node
 
-from mecanumbot_msgs.msg import ButtonEvent, JoystickEvent, ControllerStatus, OpenCRState
+from mecanumbot_msgs.msg import ButtonEvent, JoystickEvent, ControllerStatus, OpenCRState, AccessMotorCmd
 from mecanumbot_msgs.srv import GetLedStatus, SetLedStatus
+from geometry_msgs.msg import Twist
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -102,6 +108,8 @@ HELP_TEXT = textwrap.dedent("""
     ║  led reset                     all corners off                   ║
     ║                                                                   ║
     ║  status / buttons / joysticks / help / quit                      ║
+    ║                                                                   ║
+    ║  (Subscribing to /cmd_vel and /cmd_accessory_pos automatically)  ║
     ╚═══════════════════════════════════════════════════════════════════╝
 """).strip()
 
@@ -156,13 +164,20 @@ class FakeControllerNode(Node):
         self._opencr      = _default_opencr()
         self._opencr_lock = threading.Lock()
 
+        # ── motor / accessory subscriptions ──────────────────────────────
+        # Simulate physical robot: reflect received commands back into
+        # the OpenCR state so the GUI sees the effect.
+        self.create_subscription(Twist,          '/cmd_vel',            self._on_cmd_vel,       10)
+        self.create_subscription(AccessMotorCmd, '/cmd_accessory_pos',  self._on_accessory_pos, 10)
+
         # ── hold threads ──────────────────────────────────────────────────
         self._hold_threads: dict[str, threading.Event] = {}
         self._hold_lock = threading.Lock()
 
         self.get_logger().info(
             'Fake robot node ready — /controller/* topics, /opencr_state, '
-            '/get_led_status, /set_led_status'
+            '/get_led_status, /set_led_status, '
+            'subscribed to /cmd_vel and /cmd_accessory_pos'
         )
 
     # ── status heartbeat ──────────────────────────────────────────────────
@@ -232,7 +247,51 @@ class FakeControllerNode(Node):
             self._led_state['BL'] = {'mode': request.bl_mode, 'color': request.bl_color}
             self._led_state['BR'] = {'mode': request.br_mode, 'color': request.br_color}
         response.success = True
+        # Print LED change to CLI so user can see the effect
+        self.get_logger().info(
+            f'[LED] FL:{request.fl_mode}/{request.fl_color}  '
+            f'FR:{request.fr_mode}/{request.fr_color}  '
+            f'BL:{request.bl_mode}/{request.bl_color}  '
+            f'BR:{request.br_mode}/{request.br_color}'
+        )
         return response
+
+    # ── motor / accessory simulation callbacks ────────────────────────────
+
+    def _on_cmd_vel(self, msg: Twist) -> None:
+        """
+        Simulate mecanum drive kinematics from a Twist message.
+        Converts linear.x / linear.y / angular.z → approximate wheel velocities
+        and reflects them into the OpenCR state so the GUI shows movement.
+        Scale factor 100 maps m/s → integer ticks (adjust as needed).
+        """
+        SCALE = 100
+        vx  = msg.linear.x
+        vy  = msg.linear.y
+        wz  = msg.angular.z
+        # Mecanum wheel mixing (simplified, equal wheel geometry)
+        vel_fl = int((vx - vy - wz) * SCALE)
+        vel_fr = int((vx + vy + wz) * SCALE)
+        vel_bl = int((vx + vy - wz) * SCALE)
+        vel_br = int((vx - vy + wz) * SCALE)
+        with self._opencr_lock:
+            self._opencr['vel_fl'] = vel_fl
+            self._opencr['vel_fr'] = vel_fr
+            self._opencr['vel_bl'] = vel_bl
+            self._opencr['vel_br'] = vel_br
+        self.get_logger().debug(
+            f'[cmd_vel] vx={vx:.3f} vy={vy:.3f} wz={wz:.3f} → '
+            f'fl={vel_fl} fr={vel_fr} bl={vel_bl} br={vel_br}'
+        )
+
+    def _on_accessory_pos(self, msg: AccessMotorCmd) -> None:
+        """Reflect accessory motor commands into the OpenCR state."""
+        with self._opencr_lock:
+            self._opencr['pos_n']  = int(msg.n_pos)
+            self._opencr['pos_gl'] = int(msg.gl_pos)
+        self.get_logger().debug(
+            f'[cmd_accessory_pos] n_pos={msg.n_pos:.3f} gl_pos={msg.gl_pos:.3f}'
+        )
 
     # ── button helpers ────────────────────────────────────────────────────
 

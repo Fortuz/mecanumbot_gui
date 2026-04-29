@@ -12,6 +12,18 @@ an interactive terminal CLI for simulating button and joystick input.
 | `/controller/connection_status` | `mecanumbot_msgs/msg/ControllerStatus` | 1 Hz (heartbeat) |
 | `/controller/button_events` | `mecanumbot_msgs/msg/ButtonEvent` | on demand |
 | `/controller/joystick_events` | `mecanumbot_msgs/msg/JoystickEvent` | on demand |
+| `/opencr_state` | `mecanumbot_msgs/msg/OpenCRState` | 10 Hz |
+
+## Subscribed topics (motor / accessory simulation)
+
+| Topic | Message type | Effect |
+|---|---|---|
+| `/cmd_vel` | `geometry_msgs/msg/Twist` | Converts linear.x/y + angular.z → wheel velocities in `/opencr_state` using mecanum kinematics |
+| `/cmd_accessory_pos` | `mecanumbot_msgs/msg/AccessMotorCmd` | Reflects servo positions into `/opencr_state` |
+
+## LED simulation
+
+`/set_led_status` service is served — any call is stored in memory and visible via `led` CLI command and `/get_led_status`. Each call is also logged to the terminal so you can see the effect immediately.
 
 ## Build & run
 
