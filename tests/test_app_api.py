@@ -786,12 +786,12 @@ class TestPageRoutes:
 
     def test_button_mapping_redirects_when_not_logged_in(self, client):
         c, *_ = client
-        r = c.get("/button-mapping")
+        r = c.get("/action-creation")
         assert r.status_code in (301, 302)
 
     def test_button_mapping_accessible_when_logged_in(self, authed_client):
         c, *_ = authed_client
-        r = c.get("/button-mapping")
+        r = c.get("/action-creation")
         assert r.status_code == 200
 
     def test_map_controls_redirects_when_not_logged_in(self, client):
@@ -943,13 +943,13 @@ class TestControllerButtonList:
         # Just verify the page loads successfully for both controller types.
         c, _, fake_dn, _ = authed_client
         self._set_controller_type(fake_dn, "Controller 360")
-        r = c.get("/button-mapping")
+        r = c.get("/action-creation")
         assert r.status_code == 200
 
     def test_button_mapping_shows_generic_buttons(self, authed_client):
         c, _, fake_dn, _ = authed_client
         self._set_controller_type(fake_dn, "Generic")
-        r = c.get("/button-mapping")
+        r = c.get("/action-creation")
         assert r.status_code == 200
 
     def test_map_controls_offline_shows_generic_fallback(self, authed_client):

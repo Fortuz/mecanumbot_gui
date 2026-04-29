@@ -750,8 +750,8 @@ class FlaskApp:
                 return jsonify({"available": False, "schemes": {}, "error": err})
             return jsonify({"available": True, "schemes": rs})
 
-        @app.get("/button-mapping")
-        def button_mapping():
+        @app.get("/action-creation")
+        def action_creation():
             if self._uid() is None:
                 return redirect(url_for("index"))
             uid     = self._uid()
@@ -762,7 +762,7 @@ class FlaskApp:
                 for name, d in actions.items()
             }
             return render_template(
-                "button_mapping.html",
+                "action_creation.html",
                 buttons=_get_controller_buttons(),
                 controller_type=docker_node.LATEST_CONTROLLER_STATUS.get("controller_type", "Unknown"),
                 actions=actions_view,
