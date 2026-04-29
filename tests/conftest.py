@@ -17,7 +17,7 @@ _ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _HOST   = os.path.join(_ROOT, 'host')
 _SHARED = os.path.join(_ROOT, 'shared')
 _BUTTON_MAPPING_ROS = os.path.join(_ROOT, 'robot', 'button_mapping_ros')
-_CONTROLLER_PKG = os.path.join(_ROOT, 'robot', 'xbox_controller_pkg', 'xbox_controller_pkg')
+_CONTROLLER_PKG = os.path.join(_ROOT, 'robot', 'controller_pkg', 'controller_pkg')
 
 for _p in (_SHARED, _HOST, _BUTTON_MAPPING_ROS, _CONTROLLER_PKG):
     if _p not in sys.path:

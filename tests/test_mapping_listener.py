@@ -633,7 +633,7 @@ class TestButtonCallback:
         event = MagicMock()
         event.button_name = "Unmapped"
         event.event = "PRESSED"
-        node.xbox_button_callback(event)
+        node.button_callback(event)
         # Should not crash; no action taken
 
     def test_once_pressed_publishes(self, node):
@@ -644,7 +644,7 @@ class TestButtonCallback:
             event = MagicMock()
             event.button_name = "A"
             event.event = "PRESSED"
-            node.xbox_button_callback(event)
+            node.button_callback(event)
             mock_publish.assert_called_once_with("TestAction", "A")
 
     def test_once_hold_no_publish(self, node):
@@ -655,7 +655,7 @@ class TestButtonCallback:
             event = MagicMock()
             event.button_name = "A"
             event.event = "HOLD"
-            node.xbox_button_callback(event)
+            node.button_callback(event)
             mock_publish.assert_not_called()
 
     def test_hold_pressed_publishes(self, node):
@@ -666,7 +666,7 @@ class TestButtonCallback:
             event = MagicMock()
             event.button_name = "B"
             event.event = "PRESSED"
-            node.xbox_button_callback(event)
+            node.button_callback(event)
             mock_publish.assert_called_once_with("HoldAction", "B")
 
     def test_hold_hold_publishes(self, node):
@@ -677,7 +677,7 @@ class TestButtonCallback:
             event = MagicMock()
             event.button_name = "B"
             event.event = "HOLD"
-            node.xbox_button_callback(event)
+            node.button_callback(event)
             mock_publish.assert_called_once()
 
     def test_action_missing_warns(self, node):
@@ -686,7 +686,7 @@ class TestButtonCallback:
         event.button_name = "X"
         event.event = "PRESSED"
         # Should log warning but not crash
-        node.xbox_button_callback(event)
+        node.button_callback(event)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -699,7 +699,7 @@ class TestJoystickCallback:
         event.joystick_name = "Unmapped Stick"
         event.x = 0.5
         event.y = 0.3
-        node.xbox_joystick_callback(event)
+        node.joystick_callback(event)
         # Should not crash
 
     def test_mapped_joystick_publishes(self, node):
@@ -711,7 +711,7 @@ class TestJoystickCallback:
             event.joystick_name = "Left Stick"
             event.x = 0.8
             event.y = -0.3
-            node.xbox_joystick_callback(event)
+            node.joystick_callback(event)
             mock_publish.assert_called_once_with("Drive", "Left Stick", 0.8, -0.3)
 
 

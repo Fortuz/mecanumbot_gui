@@ -891,7 +891,7 @@ class TestControllerButtonList:
 
     def test_get_controller_buttons_xbox360(self, authed_client):
         _, _, fake_dn, _ = authed_client
-        self._set_controller_type(fake_dn, "Xbox 360")
+        self._set_controller_type(fake_dn, "Controller 360")
         import app as app_module
         buttons = app_module._get_controller_buttons()
         assert "XBOX" in buttons
@@ -923,7 +923,7 @@ class TestControllerButtonList:
 
     def test_map_controls_shows_xbox360_buttons(self, authed_client):
         c, _, fake_dn, _ = authed_client
-        self._set_controller_type(fake_dn, "Xbox 360")
+        self._set_controller_type(fake_dn, "Controller 360")
         r = c.get("/map-controls")
         assert r.status_code == 200
         assert b'"XBOX"' in r.data
@@ -942,7 +942,7 @@ class TestControllerButtonList:
         # the buttons list is passed but not rendered into JS on this page.
         # Just verify the page loads successfully for both controller types.
         c, _, fake_dn, _ = authed_client
-        self._set_controller_type(fake_dn, "Xbox 360")
+        self._set_controller_type(fake_dn, "Controller 360")
         r = c.get("/button-mapping")
         assert r.status_code == 200
 

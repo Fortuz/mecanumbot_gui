@@ -24,7 +24,7 @@ Responsibilities
    Either way, self.actions is fully replaced with only the actions needed
    by the newly selected mapping.
 
-4. Subscribes to Xbox controller button/joystick events and publishes the
+4. Subscribes to controller button/joystick events and publishes the
    mapped ROS2 messages using the currently active mapping's actions.
 
 Active-mapping memory model
@@ -139,11 +139,11 @@ class MappingListener(Node):
         if MECANUMBOT_MSGS_AVAILABLE:
             self.create_subscription(
                 ButtonEvent, '/controller/button_events',
-                self.xbox_button_callback, 10,
+                self.button_callback, 10,
                 callback_group=self._ctrl_cbg)
             self.create_subscription(
                 JoystickEvent, '/controller/joystick_events',
-                self.xbox_joystick_callback, 10,
+                self.joystick_callback, 10,
                 callback_group=self._ctrl_cbg)
         else:
             self.get_logger().warn(
@@ -676,7 +676,7 @@ class MappingListener(Node):
     # Controller callbacks
     # ══════════════════════════════════════════════════════════════════════════
 
-    def xbox_button_callback(self, msg: 'ButtonEvent'):
+    def button_callback(self, msg: 'ButtonEvent'):
         try:
             button_name = msg.button_name
             event_type  = msg.event
@@ -704,7 +704,7 @@ class MappingListener(Node):
         except Exception as e:
             self.get_logger().error(f'Button event error: {e}')
 
-    def xbox_joystick_callback(self, msg: 'JoystickEvent'):
+    def joystick_callback(self, msg: 'JoystickEvent'):
         try:
             joystick_name = msg.joystick_name
             x_value       = msg.x

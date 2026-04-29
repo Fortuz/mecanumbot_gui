@@ -120,7 +120,7 @@ class TestDetectLayout:
         node._detect_layout(joy_msg)
         
         assert node._layout == 'xbox360'
-        assert node._layout_name == 'Xbox 360'
+        assert node._layout_name == 'Controller 360'
         assert len(node.button_names) > 0
 
     def test_generic_layout_detected(self, node):
@@ -422,7 +422,7 @@ class TestButtonNameMapping:
         assert node.button_names[0] == 'A'
         assert node.button_names[1] == 'B'
         assert node.button_names[4] == 'LB'
-        assert node.button_names[8] == 'XBOX'
+        assert node.button_names[8] == 'GUIDE'
 
     def test_generic_button_names(self, node):
         node._layout = 'generic'

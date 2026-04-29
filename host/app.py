@@ -43,11 +43,11 @@ CONTROLLER_JOYSTICKS = [
 def _get_controller_buttons():
     """Return the correct button list based on the live controller type."""
     ctype = docker_node.LATEST_CONTROLLER_STATUS.get("controller_type", "Unknown")
-    if ctype == "Xbox 360":
+    if ctype == "Controller 360":
         return XBOX360_BUTTONS
     elif ctype == "Generic":
         return GENERIC_BUTTONS
-    # Robot offline or unknown — fall back to Xbox 360 list as default
+    # Robot offline or unknown — fall back to generic list as default
     return GENERIC_BUTTONS
 
 # ──────────────────────────────────────────────────────────────

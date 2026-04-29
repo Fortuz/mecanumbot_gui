@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'xbox_controller_pkg'
+package_name = 'controller_pkg'
 
 setup(
     name=package_name,
@@ -17,11 +17,11 @@ setup(
     zip_safe=True,
     maintainer='Your Name',
     maintainer_email='your.email@example.com',
-    description='ROS 2 package for Xbox 360 controller integration with button event publishing',
+    description='ROS 2 package for gamepad controller integration with button event publishing',
     license='MIT',
     entry_points={
         'console_scripts': [
-            'controller_node = xbox_controller_pkg.controller_node:main',
+            'controller_node = controller_pkg.controller_node:main',
         ],
     },
 )

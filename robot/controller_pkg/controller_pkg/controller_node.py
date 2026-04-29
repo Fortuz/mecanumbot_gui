@@ -13,7 +13,7 @@ It auto-detects the controller layout from the first /joy message:
     - Axes 3-4: Right Stick (X/Y)
     - Axes 5:   Right Trigger (RT)  rest=+1, fully pressed=-1
     - Axes 6-7: D-Pad (left/right, down/up) as ±1 floats
-    - Buttons 0-10: A B X Y LB RB BACK START XBOX LS RS
+    - Buttons 0-10: A B X Y LB RB BACK START GUIDE LS RS
 
   Generic / Xbox One / PS4 / other — anything else
     - Axes 0-1: Left Stick (X/Y)
@@ -25,7 +25,7 @@ It auto-detects the controller layout from the first /joy message:
 
 Requirements:
 - ros-humble-joy package
-- Xbox 360 wireless adapter  OR  any HID-compatible gamepad
+- Any HID-compatible gamepad
 
 """
 
@@ -62,7 +62,7 @@ class ControllerNode(Node):
     _BUTTON_NAMES_XBOX360 = {
         0: 'A', 1: 'B', 2: 'X', 3: 'Y',
         4: 'LB', 5: 'RB',
-        6: 'BACK', 7: 'START', 8: 'XBOX',
+        6: 'BACK', 7: 'START', 8: 'GUIDE',
         9: 'LS', 10: 'RS',
     }
 
@@ -132,7 +132,7 @@ class ControllerNode(Node):
         # 3-second connected window before the first /joy message arrives.
         self.last_joy_time = self.get_clock().now() - rclpy.duration.Duration(seconds=10)
         
-        self.get_logger().info('Xbox 360 Controller Node initialized')
+        self.get_logger().info('Controller Node initialized')
         self.get_logger().info('Waiting for controller input on /joy topic...')
         self.get_logger().info('Make sure to run: ros2 run joy joy_node')
         
@@ -146,17 +146,17 @@ class ControllerNode(Node):
 
         if n_axes == _XBOX360_NUM_AXES and n_buttons == _XBOX360_NUM_BUTTONS:
             self._layout      = 'xbox360'
-            self._layout_name = 'Xbox 360'
+            self._layout_name = 'Controller 360'
             self.button_names = self._BUTTON_NAMES_XBOX360
             self.get_logger().info(
-                f'Controller layout detected: Xbox 360 wireless '
+                f'Controller layout detected: 360-style (xpad) '
                 f'({n_axes} axes, {n_buttons} buttons) — D-Pad via axes[6]/axes[7]')
         else:
             self._layout      = 'generic'
             self._layout_name = 'Generic Controller'
             self.button_names = self._BUTTON_NAMES_GENERIC
             self.get_logger().info(
-                f'Controller layout detected: Generic / non-Xbox-360 '
+                f'Controller layout detected: Generic '
                 f'({n_axes} axes, {n_buttons} buttons) — D-Pad via buttons '
                 f'{GENERIC_DPAD_UP}/{GENERIC_DPAD_DOWN}/'
                 f'{GENERIC_DPAD_LEFT}/{GENERIC_DPAD_RIGHT}')
