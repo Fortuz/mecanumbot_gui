@@ -279,41 +279,37 @@ class ControllerNode(Node):
             lt_val = round((axes[2] + 1.0) / 2.0, 3)   # 0.0 … 1.0
             rt_val = round((axes[5] + 1.0) / 2.0, 3)   # 0.0 … 1.0
 
-        # Publish Left Stick event if not centered (deadzone 0.05)
-        if abs(left_x) > 0.05 or abs(left_y) > 0.05:
-            msg = JoystickEvent()
-            msg.joystick_name = 'Left Stick'
-            msg.x             = left_x
-            msg.y             = left_y
-            msg.timestamp     = self.get_clock().now().to_msg().sec
-            self.joystick_publisher.publish(msg)
+        # Publish Left Stick event (always, so zero resets the robot)
+        msg = JoystickEvent()
+        msg.joystick_name = 'Left Stick'
+        msg.x             = left_x
+        msg.y             = left_y
+        msg.timestamp     = self.get_clock().now().to_msg().sec
+        self.joystick_publisher.publish(msg)
 
-        # Publish Right Stick event if not centered (deadzone 0.05)
-        if abs(right_x) > 0.05 or abs(right_y) > 0.05:
-            msg = JoystickEvent()
-            msg.joystick_name = 'Right Stick'
-            msg.x             = right_x
-            msg.y             = right_y
-            msg.timestamp     = self.get_clock().now().to_msg().sec
-            self.joystick_publisher.publish(msg)
+        # Publish Right Stick event (always)
+        msg = JoystickEvent()
+        msg.joystick_name = 'Right Stick'
+        msg.x             = right_x
+        msg.y             = right_y
+        msg.timestamp     = self.get_clock().now().to_msg().sec
+        self.joystick_publisher.publish(msg)
 
-        # Publish Left Trigger event if pressed (deadzone 0.05)
-        if lt_val > 0.05:
-            msg = JoystickEvent()
-            msg.joystick_name = 'Left Trigger (LT)'
-            msg.x             = lt_val
-            msg.y             = 0.0
-            msg.timestamp     = self.get_clock().now().to_msg().sec
-            self.joystick_publisher.publish(msg)
+        # Publish Left Trigger event (always)
+        msg = JoystickEvent()
+        msg.joystick_name = 'Left Trigger (LT)'
+        msg.x             = lt_val
+        msg.y             = 0.0
+        msg.timestamp     = self.get_clock().now().to_msg().sec
+        self.joystick_publisher.publish(msg)
 
-        # Publish Right Trigger event if pressed (deadzone 0.05)
-        if rt_val > 0.05:
-            msg = JoystickEvent()
-            msg.joystick_name = 'Right Trigger (RT)'
-            msg.x             = rt_val
-            msg.y             = 0.0
-            msg.timestamp     = self.get_clock().now().to_msg().sec
-            self.joystick_publisher.publish(msg)
+        # Publish Right Trigger event (always)
+        msg = JoystickEvent()
+        msg.joystick_name = 'Right Trigger (RT)'
+        msg.x             = rt_val
+        msg.y             = 0.0
+        msg.timestamp     = self.get_clock().now().to_msg().sec
+        self.joystick_publisher.publish(msg)
 
         # ── D-Pad ─────────────────────────────────────────────────────────────
         if self._layout == 'xbox360':
