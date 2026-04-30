@@ -43,8 +43,8 @@ _XBOX360_NUM_BUTTONS = 11
 
 # ── Generic D-Pad button indices ──────────────────────────────────────────────
 # Most generic USB gamepads, Xbox One (xpad), and DS4 (via ds4drv) report
-# D-Pad as buttons starting around index 11.  Adjust if your controller
-# differs; the layout is printed to the log on first connection.
+# D-Pad as buttons starting around index 11.
+# The layout is printed to the log on first connection.
 GENERIC_DPAD_UP    = 11
 GENERIC_DPAD_DOWN  = 12
 GENERIC_DPAD_LEFT  = 13
@@ -134,7 +134,6 @@ class ControllerNode(Node):
         
         self.get_logger().info('Controller Node initialized')
         self.get_logger().info('Waiting for controller input on /joy topic...')
-        self.get_logger().info('Make sure to run: ros2 run joy joy_node')
         
         # Publish initial connection status on startup
         self.publish_connection_status()
