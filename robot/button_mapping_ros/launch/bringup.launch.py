@@ -13,11 +13,14 @@ def generate_launch_description():
         SetEnvironmentVariable('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'),
 
         # joy driver — reads /dev/input/js* and publishes sensor_msgs/msg/Joy
+        # autorepeat_rate: publish at 20 Hz even when idle (needed for
+        # connection-status watchdog to distinguish idle from disconnected)
         Node(
             package='joy',
             executable='joy_node',
             name='joy_node',
             output='screen',
+            parameters=[{'autorepeat_rate': 20.0}],
         ),
 
         # Translates raw Joy messages → controller-typed ROS2 topics

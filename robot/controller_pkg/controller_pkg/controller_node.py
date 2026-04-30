@@ -121,8 +121,7 @@ class ControllerNode(Node):
             10
         )
         
-        # Timer for publishing connection status periodically
-        self.connection_timer = self.create_timer(2.0, self.publish_connection_status)  # Every 2 seconds
+        
         
         self.current_joy_msg = None
         self.controller_connected = False
@@ -201,6 +200,9 @@ class ControllerNode(Node):
         
         # Publish joystick positions (Left and Right Stick)
         self.publish_joystick_positions()
+
+        # Publish connection status on every joy message
+        self.publish_connection_status()
 
     def publish_button_event(self, event_type, button_name, button_id):
         """
