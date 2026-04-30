@@ -238,15 +238,13 @@ class DockerNode(Node):
                 self.get_logger().info(
                     'Controller came online (/controller/connection_status received).')
             LATEST_CONTROLLER_STATUS = {
-                "connected":             msg.connected,
-                "controller_type":       msg.controller_type,
-                "time_since_last_input": msg.time_since_last_input,
-                "timestamp":             msg.timestamp,
-                "last_updated":          datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                "connected":       True,
+                "controller_type": msg.controller_type,
+                "last_updated":    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             self._write_log(
-                f"[{ts}] Connected: {LATEST_CONTROLLER_STATUS['connected']} | "
+                f"[{ts}] Controller online | "
                 f"Type: {LATEST_CONTROLLER_STATUS['controller_type']}"
             )
         except Exception as e:

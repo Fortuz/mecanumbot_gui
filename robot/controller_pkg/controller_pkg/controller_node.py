@@ -214,15 +214,12 @@ class ControllerNode(Node):
     def publish_connection_status(self):
         """
         Publish controller connection status to ROS 2 topic.
-        Called on every joy_callback, so connected is always True here —
-        disconnection is detected by docker_node's _controller_watchdog when
-        this topic goes silent.
+        Called on every joy_callback, so reception of this message implicitly
+        means the controller is connected — disconnection is detected by
+        docker_node's _controller_watchdog when this topic goes silent.
         """
         msg = ControllerStatus()
-        msg.connected             = True
-        msg.controller_type       = self._layout_name
-        msg.time_since_last_input = 0.0
-        msg.timestamp             = self.get_clock().now().to_msg().sec
+        msg.controller_type = self._layout_name
         self.connection_publisher.publish(msg)
     
     def publish_joystick_positions(self):
