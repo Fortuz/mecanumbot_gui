@@ -30,7 +30,6 @@ Requirements:
 """
 
 import rclpy
-import rclpy.duration
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from mecanumbot_msgs.msg import ButtonEvent, JoystickEvent, ControllerStatus
@@ -124,18 +123,9 @@ class ControllerNode(Node):
         
         
         self.current_joy_msg = None
-        self.controller_connected = False
-        self._ever_connected = False   # distinguishes first connect from reconnect
-        # Initialise far enough in the past so the status timer immediately
-        # reports "disconnected" on startup rather than showing a false
-        # 3-second connected window before the first /joy message arrives.
-        self.last_joy_time = self.get_clock().now() - rclpy.duration.Duration(seconds=10)
-        
+
         self.get_logger().info('Controller Node initialized')
         self.get_logger().info('Waiting for controller input on /joy topic...')
-        
-        # Publish initial connection status on startup
-        self.publish_connection_status()
 
     def _detect_layout(self, msg):
         """Called once on the first /joy message to determine controller layout."""
@@ -170,7 +160,6 @@ class ControllerNode(Node):
             self._detect_layout(msg)
 
         self.current_joy_msg = msg
-        self.last_joy_time = self.get_clock().now()
 
         # ── Generic D-Pad button indices to skip in the main loop ─────────────
         # (they are handled as named D-Pad events, not raw BUTTON_N events)
@@ -224,31 +213,16 @@ class ControllerNode(Node):
 
     def publish_connection_status(self):
         """
-        Publish controller connection status to ROS2 topic.
-        Checks if we've received joy messages recently (within 3 seconds).
+        Publish controller connection status to ROS 2 topic.
+        Called on every joy_callback, so connected is always True here —
+        disconnection is detected by docker_node's _controller_watchdog when
+        this topic goes silent.
         """
-        current_time = self.get_clock().now()
-        time_since_last_msg = (current_time - self.last_joy_time).nanoseconds / 1e9
-        
-        # Consider disconnected if no message in 3 seconds
-        was_connected = self.controller_connected
-        self.controller_connected = time_since_last_msg < 3.0
-        
-        # Log status transitions
-        if not was_connected and self.controller_connected:
-            if not self._ever_connected:
-                self.get_logger().info('Controller connected!')
-                self._ever_connected = True
-            else:
-                self.get_logger().info('Controller reconnected!')
-        elif was_connected and not self.controller_connected:
-            self.get_logger().warn('Controller disconnected!')
-        
         msg = ControllerStatus()
-        msg.connected              = self.controller_connected
-        msg.controller_type        = self._layout_name
-        msg.time_since_last_input  = round(time_since_last_msg, 2)
-        msg.timestamp              = current_time.to_msg().sec
+        msg.connected             = True
+        msg.controller_type       = self._layout_name
+        msg.time_since_last_input = 0.0
+        msg.timestamp             = self.get_clock().now().to_msg().sec
         self.connection_publisher.publish(msg)
     
     def publish_joystick_positions(self):
