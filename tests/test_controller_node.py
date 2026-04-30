@@ -246,36 +246,60 @@ class TestPublishButtonEvent:
 # Test: Publish joystick positions
 # ══════════════════════════════════════════════════════════════════════════════
 
+@pytest.fixture
+def fresh_joy_events():
+    """
+    Make JoystickEvent() return a distinct MagicMock per call for the duration
+    of a test.  Without this, all msg = JoystickEvent() calls return the same
+    return_value mock, so the last attribute assignment overwrites all previous
+    ones and message-content assertions become unreliable.
+
+    NOTE: we patch controller_node.JoystickEvent directly instead of going
+    through sys.modules['mecanumbot_msgs.msg'], because other test modules
+    (e.g. test_mapping_listener) replace that sys.modules entry with a fresh
+    MagicMock during collection, which would make the fixture target the wrong
+    object at runtime.
+    """
+    import controller_node as cn
+    cn.JoystickEvent.side_effect = lambda: MagicMock()
+    yield
+    cn.JoystickEvent.side_effect = None
+
+
 class TestPublishJoystickPositions:
-    def test_left_stick_deadzone(self, node):
+    def test_left_stick_published_regardless_of_magnitude(self, node, fresh_joy_events):
+        """Left stick is always published — no deadzone filtering."""
         node._layout = 'xbox360'
         node.joystick_publisher = MagicMock()
-        # Below deadzone (0.05)
         node.current_joy_msg = create_joy_msg(
             axes=[0.02, 0.03, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             buttons=[0] * 11
         )
         node.publish_joystick_positions()
-        # Should not publish due to deadzone
-        node.joystick_publisher.publish.assert_not_called()
+        calls = node.joystick_publisher.publish.call_args_list
+        left_stick_calls = [c for c in calls if c[0][0].joystick_name == 'Left Stick']
+        assert len(left_stick_calls) == 1
+        msg = left_stick_calls[0][0][0]
+        assert msg.x == 0.02
+        assert msg.y == 0.03
 
-    def test_left_stick_above_deadzone(self, node):
+    def test_left_stick_above_deadzone(self, node, fresh_joy_events):
         node._layout = 'xbox360'
         node.joystick_publisher = MagicMock()
-        # Above deadzone
         node.current_joy_msg = create_joy_msg(
             axes=[0.8, 0.6, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             buttons=[0] * 11
         )
         node.publish_joystick_positions()
-        # Should publish
-        assert node.joystick_publisher.publish.call_count >= 1
-        msg = node.joystick_publisher.publish.call_args_list[0][0][0]
+        calls = node.joystick_publisher.publish.call_args_list
+        left_stick_calls = [c for c in calls if c[0][0].joystick_name == 'Left Stick']
+        assert len(left_stick_calls) == 1
+        msg = left_stick_calls[0][0][0]
         assert msg.joystick_name == 'Left Stick'
         assert msg.x == 0.8
         assert msg.y == 0.6
 
-    def test_right_stick_published(self, node):
+    def test_right_stick_published(self, node, fresh_joy_events):
         node._layout = 'xbox360'
         node.joystick_publisher = MagicMock()
         node.current_joy_msg = create_joy_msg(
@@ -283,7 +307,6 @@ class TestPublishJoystickPositions:
             buttons=[0] * 11
         )
         node.publish_joystick_positions()
-        # Right stick should be published
         calls = node.joystick_publisher.publish.call_args_list
         right_stick_call = [c for c in calls if c[0][0].joystick_name == 'Right Stick']
         assert len(right_stick_call) == 1
@@ -291,37 +314,35 @@ class TestPublishJoystickPositions:
         assert msg.x == 0.7
         assert msg.y == -0.5
 
-    def test_trigger_normalisation_xbox360(self, node):
+    def test_trigger_normalisation_xbox360(self, node, fresh_joy_events):
+        """Xbox 360 trigger: rest=+1.0, fully pressed=-1.0 → normalised to 0.0…1.0."""
         node._layout = 'xbox360'
         node.joystick_publisher = MagicMock()
-        # Xbox 360: LT/RT rest at +1.0, fully pressed at -1.0
+        # LT fully pressed (axes[2] = -1.0), RT at rest (axes[5] = +1.0)
         node.current_joy_msg = create_joy_msg(
-            axes=[0.0, 0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0],  # LT fully pressed, RT at rest
+            axes=[0.0, 0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             buttons=[0] * 11
         )
         node.publish_joystick_positions()
-        # LT should normalize to 1.0 (fully pressed)
         calls = node.joystick_publisher.publish.call_args_list
         lt_calls = [c for c in calls if 'Left Trigger' in c[0][0].joystick_name]
         assert len(lt_calls) == 1
-        msg = lt_calls[0][0][0]
-        assert msg.x == 1.0  # (1.0 - (-1.0)) / 2.0 = 1.0
+        assert lt_calls[0][0][0].x == 1.0  # (1.0 - (-1.0)) / 2.0 = 1.0
 
-    def test_trigger_normalisation_generic(self, node):
+    def test_trigger_normalisation_generic(self, node, fresh_joy_events):
+        """Generic trigger: rest=-1.0, fully pressed=+1.0 → normalised to 0.0…1.0."""
         node._layout = 'generic'
         node.joystick_publisher = MagicMock()
-        # Generic: LT/RT rest at -1.0 (or 0), fully pressed at +1.0
+        # LT fully pressed (axes[2] = +1.0), RT at rest (axes[5] = -1.0)
         node.current_joy_msg = create_joy_msg(
-            axes=[0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0],  # LT fully pressed, RT at rest
+            axes=[0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
             buttons=[0] * 16
         )
         node.publish_joystick_positions()
-        # LT should normalize to 1.0, RT to 0.0
         calls = node.joystick_publisher.publish.call_args_list
         lt_calls = [c for c in calls if 'Left Trigger' in c[0][0].joystick_name]
         assert len(lt_calls) == 1
-        msg = lt_calls[0][0][0]
-        assert msg.x == 1.0  # (1.0 + 1.0) / 2.0 = 1.0
+        assert lt_calls[0][0][0].x == 1.0  # (1.0 + 1.0) / 2.0 = 1.0
 
     def test_dpad_via_axes_xbox360(self, node):
         node._layout = 'xbox360'
@@ -359,54 +380,35 @@ class TestPublishJoystickPositions:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestPublishConnectionStatus:
-    def test_recent_message_shows_connected(self, node):
+    def test_publishes_with_unknown_layout(self, node):
+        """Before any joy message, layout is None → controller_type is 'Unknown'."""
         node.connection_publisher = MagicMock()
-        # Set last joy time to very recent (less than 3 seconds ago)
-        current_time = node.get_clock().now()
-        node.last_joy_time = current_time
-        
         node.publish_connection_status()
-        
+        node.connection_publisher.publish.assert_called_once()
         msg = node.connection_publisher.publish.call_args[0][0]
-        assert msg.connected is True
+        assert msg.controller_type == 'Unknown'
 
-    def test_stale_message_shows_disconnected(self, node):
+    def test_publishes_controller_type_xbox360(self, node):
+        """After xbox360 layout detection, controller_type reflects the layout name."""
         node.connection_publisher = MagicMock()
-        # Set last_joy_time to 10 seconds in the past
-        node.last_joy_time = MockTime(-5000000000)  # -5 seconds (10 seconds in past from current 5s)
-        
+        node._detect_layout(create_joy_msg([0.0] * 8, [0] * 11))
         node.publish_connection_status()
-        
         msg = node.connection_publisher.publish.call_args[0][0]
-        assert msg.connected is False
+        assert msg.controller_type == 'Controller 360'
 
-    def test_connection_transition_logs(self, node):
+    def test_publishes_controller_type_generic(self, node):
+        """After generic layout detection, controller_type is 'Generic Controller'."""
         node.connection_publisher = MagicMock()
-        node.controller_connected = False
-        node._ever_connected = False
-        
-        # Simulate connection
-        node.last_joy_time = node.get_clock().now()
+        node._detect_layout(create_joy_msg([0.0] * 6, [0] * 16))
         node.publish_connection_status()
-        
-        # Should log "Controller connected!"
-        logger_calls = node.get_logger().info.call_args_list
-        connected_logs = [c for c in logger_calls if 'connected' in str(c).lower()]
-        assert len(connected_logs) > 0
+        msg = node.connection_publisher.publish.call_args[0][0]
+        assert msg.controller_type == 'Generic Controller'
 
-    def test_reconnection_logs_differently(self, node):
+    def test_always_publishes_exactly_once(self, node):
+        """publish_connection_status always publishes exactly one message per call."""
         node.connection_publisher = MagicMock()
-        node.controller_connected = False
-        node._ever_connected = True  # Was connected before
-        
-        # Simulate reconnection
-        node.last_joy_time = node.get_clock().now()
         node.publish_connection_status()
-        
-        # Should log "Controller reconnected!"
-        logger_calls = node.get_logger().info.call_args_list
-        reconnect_logs = [c for c in logger_calls if 'reconnected' in str(c).lower()]
-        assert len(reconnect_logs) > 0
+        assert node.connection_publisher.publish.call_count == 1
 
 
 # ══════════════════════════════════════════════════════════════════════════════
