@@ -187,10 +187,7 @@ class FakeControllerNode(Node):
 
     def _publish_status(self) -> None:
         msg = ControllerStatus()
-        msg.connected = True
         msg.controller_type = 'Generic'
-        msg.time_since_last_input = 0.0
-        msg.timestamp = self._now()
         self._stat_pub.publish(msg)
 
     # ── OpenCR heartbeat ──────────────────────────────────────────────────
