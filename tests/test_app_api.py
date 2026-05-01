@@ -10,8 +10,6 @@ Strategy
   is imported / instantiated, so no real threads or ROS2 are needed.
 * Every test group focuses on one API surface area.
 
-Run with:
-    pytest tests/test_app_api.py -v
 """
 
 import json

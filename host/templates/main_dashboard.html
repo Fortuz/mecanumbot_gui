@@ -735,7 +735,7 @@
                         if (status.connected) {
                             el.className = 'status-badge connected';
                             el.innerHTML = '<span class="status-dot connected"></span><span></span>';
-                            el.querySelector('span:last-child').textContent = (status.controller_type || 'Xbox Controller') + ' Connected';
+                            el.querySelector('span:last-child').textContent = (status.controller_type || 'Controller') + ' Connected';
                         } else {
                             el.className = 'status-badge disconnected';
                             el.innerHTML = '<span class="status-dot disconnected"></span><span>Controller Disconnected</span>';
