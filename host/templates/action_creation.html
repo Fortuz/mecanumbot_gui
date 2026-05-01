@@ -1378,6 +1378,8 @@
                 showToast('Action data not found. Try refreshing.', 'error');
                 return;
             }
+            // Set "Save to" destination to match where the action came from
+            setSaveDest(_actionSource);
             modifyAction(name, actionData);
         }
 
