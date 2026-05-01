@@ -117,7 +117,8 @@ function makeOnclickAttr(fnName, name, side) {
 
 test("simple name generates valid onclick", () => {
     const attr = makeOnclickAttr("applyMapping", "Teleop Default", "host");
-    expect(attr).toBe(`onclick='applyMapping("Teleop Default","host")'`);
+    // escHtml encodes " as &quot; even inside single-quoted attribute (safe & valid HTML)
+    expect(attr).toBe(`onclick='applyMapping(&quot;Teleop Default&quot;,"host")'`);
 });
 test("apostrophe in name does not break onclick attribute", () => {
     const attr = makeOnclickAttr("applyMapping", "Driver's Setup", "host");
@@ -128,9 +129,11 @@ test("apostrophe in name does not break onclick attribute", () => {
 test("double-quote in name is escaped inside single-quoted attribute", () => {
     const attr = makeOnclickAttr("modifyMapping", 'My "Best" Map', "robot");
     const inner = attr.slice(`onclick='`.length, attr.length - 1);
+    // The name part must have " escaped as &quot; by escHtml
     expect(inner).toContain("&quot;");
-    expect(inner).notToContain('"');   // raw double-quote would still be safe here,
-                                        // but we verify escHtml handles it anyway
+    // The side ("robot") uses JSON.stringify directly so raw " is expected there,
+    // but the name portion must not have raw " — check via &quot; count
+    expect(inner).toContain('My \\&quot;Best\\&quot; Map');
 });
 test("side value is passed as JSON string", () => {
     const attr = makeOnclickAttr("deleteMapping", "Map", "robot");

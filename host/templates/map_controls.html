@@ -238,12 +238,6 @@
             let html = '<div class="mapping-list">';
             for (const { name, data } of entries) {
                 let details = '';
-                if (data) {
-                    const btns = (data.buttons  || []).map(b => `${escHtml(b.button)}→${escHtml(b.action)}`).join(', ');
-                    const joys = (data.joysticks || []).map(j => `${escHtml(j.joystick)}→${escHtml(j.action)}`).join(', ');
-                    if (btns) details += `<div>🎮 ${btns}</div>`;
-                    if (joys) details += `<div>🕹️ ${joys}</div>`;
-                }
                 html += `
                 <div class="mapping-item">
                     <div class="mapping-item-header">
