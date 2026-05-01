@@ -182,10 +182,12 @@ class DockerNode(Node):
 
         self._led_set_client = self.create_client(SetLedStatus, '/mecanumbot/set_led_status')
         self._led_get_client = self.create_client(GetLedStatus, '/mecanumbot/get_led_status')
-        self._rec_subs     = {}
-        self._rec_files    = {}
-        self._rec_file     = None
-        self._rec_led_file = None   # distinct file for LED state when selected
+        self._rec_subs          = {}
+        self._rec_files         = {}
+        self._rec_file          = None
+        self._rec_led_file      = None   # distinct file for LED state when selected
+        self._rec_odom_distance = 0.0    # cumulative meters traveled during recording
+        self._rec_odom_last_pos = None   # (x, y) of last /odom pose received
 
         # ── Thread-safe subscription queue ────────────────────────────────────
         # create_subscription / destroy_subscription must be called from the
@@ -365,10 +367,12 @@ class DockerNode(Node):
         sf.write("\n")
         sf.flush()
 
-        self._rec_files    = {}
-        self._rec_file     = sf
-        self._rec_subs     = {}
-        self._rec_led_file = None
+        self._rec_files         = {}
+        self._rec_file          = sf
+        self._rec_subs          = {}
+        self._rec_led_file      = None
+        self._rec_odom_distance = 0.0
+        self._rec_odom_last_pos = None
 
         for entry in RECORDABLE_TOPICS:
             topic = entry['topic']
@@ -460,6 +464,10 @@ class DockerNode(Node):
 
         if self._rec_file:
             try:
+                if self._rec_odom_last_pos is not None:
+                    self._rec_file.write(
+                        f"Distance  : {self._rec_odom_distance:.3f} m\n"
+                    )
                 self._rec_file.write(
                     f"{'=' * 40}\n"
                     f"Stopped   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -478,6 +486,9 @@ class DockerNode(Node):
             except Exception:
                 pass
             self._rec_led_file = None
+
+        self._rec_odom_distance = 0.0
+        self._rec_odom_last_pos = None
 
         RECORDING_STATE = {
             'active':     False,
@@ -548,6 +559,20 @@ class DockerNode(Node):
                 tf.flush()
             except Exception as e:
                 self.get_logger().error(f'Recording write error ({topic}): {e}')
+
+            # ── Distance tracking for /odom ───────────────────────────────────
+            if topic == '/odom':
+                try:
+                    x = msg.pose.pose.position.x
+                    y = msg.pose.pose.position.y
+                    if self._rec_odom_last_pos is not None:
+                        dx = x - self._rec_odom_last_pos[0]
+                        dy = y - self._rec_odom_last_pos[1]
+                        self._rec_odom_distance += (dx * dx + dy * dy) ** 0.5
+                    self._rec_odom_last_pos = (x, y)
+                except Exception:
+                    pass
+
         return _callback
 
     # ── Robot watchdog ────────────────────────────────────────────────────────
